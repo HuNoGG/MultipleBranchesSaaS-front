@@ -40,6 +40,7 @@ export function ossConfigChangeStatus(data: any) {
   const requestData = {
     ossConfigId: data.ossConfigId,
     status: data.status,
+    configKey: data.configKey,
   };
   return requestClient.putWithMsg(Api.ossConfigChangeStatus, requestData);
 }
