@@ -322,6 +322,8 @@ export function useUpload(
     () => bindValue.value,
     async (value) => {
       if (value.length === 0) {
+        // 清空绑定值时，同时清空innerFileList，避免外部使用时还能读取到
+        innerFileList.value = [];
         return;
       }
 
