@@ -12,7 +12,7 @@ import { eachTree, getVxePopupContainer } from '@vben/utils';
 
 import { Popconfirm, Space } from 'ant-design-vue';
 
-import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { preserveTreeTableState, useVbenVxeGrid } from '#/adapter/vxe-table';
 import { menuList, menuRemove } from '#/api/system/menu';
 
 import { columns, querySchema } from './data';
@@ -112,8 +112,17 @@ async function handleEdit(record: Menu) {
 }
 
 async function handleDelete(row: Menu) {
-  await menuRemove([row.menuId]);
-  await tableApi.query();
+  await preserveTreeTableState(tableApi, async () => {
+    await menuRemove([row.menuId]);
+    await tableApi.query();
+  });
+}
+
+/**
+ * 编辑/添加成功后刷新表格
+ */
+async function afterEditOrAdd() {
+  await preserveTreeTableState(tableApi, () => tableApi.query());
 }
 
 /**
@@ -189,7 +198,7 @@ const isAdmin = computed(() => {
         </Space>
       </template>
     </BasicTable>
-    <MenuDrawer @reload="tableApi.query()" />
+    <MenuDrawer @reload="afterEditOrAdd" />
   </Page>
   <Fallback v-else description="您没有菜单管理的访问权限" status="403" />
 </template>
