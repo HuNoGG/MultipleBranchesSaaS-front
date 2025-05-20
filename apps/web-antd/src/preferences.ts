@@ -22,15 +22,6 @@ export const overridesPreferences = defineOverridesPreferences({
     // defaultAvatar: '',
     name: import.meta.env.VITE_APP_TITLE,
     /**
-     * 这里需要设置为0 因为Page组件已经自带了padding
-     * TODO: 不确定官方后续会不会更新
-     */
-    contentPadding: 0,
-    contentPaddingTop: 0,
-    contentPaddingBottom: 0,
-    contentPaddingLeft: 0,
-    contentPaddingRight: 0,
-    /**
      * 不支持modal模式 需要改动的地方太多
      * 1. 正常重新登录后不会再触发接口请求 即触发登录超时的页面为空数据
      * 2. 切换租户登录后不会重新加载菜单
