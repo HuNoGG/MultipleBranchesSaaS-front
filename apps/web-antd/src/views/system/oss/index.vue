@@ -33,7 +33,8 @@ import { ossDownload, ossList, ossRemove } from '#/api/system/oss';
 import { calculateFileSize } from '#/utils/file';
 import { downloadByData } from '#/utils/file/download';
 
-import { columns, fallbackImageBase64, querySchema } from './data';
+import { columns, querySchema } from './data';
+import fallbackImageBase64 from './fallback-image.txt?raw';
 import fileUploadModal from './file-upload-modal.vue';
 import imageUploadModal from './image-upload-modal.vue';
 
