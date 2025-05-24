@@ -4,16 +4,16 @@ import type { VbenFormProps } from '@vben/common-ui';
 import type { VxeGridProps } from '#/adapter/vxe-table';
 import type { Menu } from '#/api/system/menu/model';
 
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 import { useAccess } from '@vben/access';
 import { Fallback, Page, useVbenDrawer } from '@vben/common-ui';
-import { eachTree, getVxePopupContainer } from '@vben/utils';
+import { eachTree, getVxePopupContainer, treeToList } from '@vben/utils';
 
-import { Popconfirm, Space } from 'ant-design-vue';
+import { Popconfirm, Space, Switch, Tooltip } from 'ant-design-vue';
 
 import { preserveTreeTableState, useVbenVxeGrid } from '#/adapter/vxe-table';
-import { menuList, menuRemove } from '#/api/system/menu';
+import { menuCascadeRemove, menuList, menuRemove } from '#/api/system/menu';
 
 import { columns, querySchema } from './data';
 import menuDrawer from './menu-drawer.vue';
@@ -111,11 +111,33 @@ async function handleEdit(record: Menu) {
   drawerApi.open();
 }
 
+/**
+ * 是否级联删除
+ */
+const cascadingDeletion = ref(false);
 async function handleDelete(row: Menu) {
   await preserveTreeTableState(tableApi, async () => {
-    await menuRemove([row.menuId]);
+    if (cascadingDeletion.value) {
+      // 级联删除
+      const menuAndChildren: Menu[] = treeToList([row], { id: 'menuId' });
+      await menuCascadeRemove(menuAndChildren.map((item) => item.menuId));
+    } else {
+      // 单删除
+      await menuRemove([row.menuId]);
+    }
     await tableApi.query();
   });
+}
+
+function removeConfirmTitle(row: Menu) {
+  if (!cascadingDeletion.value) {
+    return `是否确认删除 [${row.menuName}] ?`;
+  }
+  const menuAndChildren = treeToList([row], { id: 'menuId' });
+  if (menuAndChildren.length === 1) {
+    return `是否确认删除 [${row.menuName}] ?`;
+  }
+  return `是否确认删除 [${row.menuName}] 及 [${menuAndChildren.length - 1}]个子项目 ?`;
 }
 
 /**
@@ -149,6 +171,12 @@ const isAdmin = computed(() => {
     <BasicTable table-title="菜单列表" table-title-help="双击展开/收起子菜单">
       <template #toolbar-tools>
         <Space>
+          <Tooltip title="删除菜单以及子菜单">
+            <div>
+              <span class="mr-1 text-sm text-[#666666]">级联删除</span>
+              <Switch v-model:checked="cascadingDeletion" />
+            </div>
+          </Tooltip>
           <a-button @click="setExpandOrCollapse(false)">
             {{ $t('pages.common.collapse') }}
           </a-button>
@@ -184,7 +212,7 @@ const isAdmin = computed(() => {
           <Popconfirm
             :get-popup-container="getVxePopupContainer"
             placement="left"
-            title="确认删除？"
+            :title="removeConfirmTitle(row)"
             @confirm="handleDelete(row)"
           >
             <ghost-button
