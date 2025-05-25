@@ -38,4 +38,9 @@ export interface Flow {
 export interface FlowInfoResponse {
   image: string;
   list: Flow[];
+  defChart: {
+    defJson: Record<string, any>;
+    nodeJsonList: Record<string, any>[];
+    skipJsonList: Record<string, any>[];
+  };
 }
