@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { ZoomParamType } from '@logicflow/core';
 
-import { onMounted, shallowRef, useTemplateRef } from 'vue';
+import { onMounted, shallowRef, useTemplateRef, watch } from 'vue';
+
+import { usePreferences } from '@vben/preferences';
 
 import {
   MinusCircleOutlined,
@@ -41,9 +43,19 @@ onMounted(async () => {
     const data = json2LogicFlowJson(props.data);
     lf.value = new LogicFlow({
       container: container.value,
-      grid: false,
       isSilentMode: true,
       textEdit: false,
+      grid: {
+        size: 20,
+        type: 'dot',
+        config: {
+          color: '#ccc',
+          thickness: 1,
+        },
+      },
+      background: {
+        backgroundColor: '#fff',
+      },
     });
 
     lf.value.register(Start);
@@ -56,6 +68,16 @@ onMounted(async () => {
     lf.value.render(data);
     lf.value.translateCenter();
   }
+});
+
+const { isDark } = usePreferences();
+watch(isDark, (v) => {
+  if (!lf.value) {
+    return;
+  }
+  lf.value.graphModel.background = {
+    background: v ? '#333' : '#fff',
+  };
 });
 </script>
 
