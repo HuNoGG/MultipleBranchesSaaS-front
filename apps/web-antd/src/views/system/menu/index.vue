@@ -130,14 +130,15 @@ async function handleDelete(row: Menu) {
 }
 
 function removeConfirmTitle(row: Menu) {
+  const menuName = $t(row.menuName);
   if (!cascadingDeletion.value) {
-    return `是否确认删除 [${row.menuName}] ?`;
+    return `是否确认删除 [${menuName}] ?`;
   }
   const menuAndChildren = treeToList([row], { id: 'menuId' });
   if (menuAndChildren.length === 1) {
-    return `是否确认删除 [${row.menuName}] ?`;
+    return `是否确认删除 [${menuName}] ?`;
   }
-  return `是否确认删除 [${row.menuName}] 及 [${menuAndChildren.length - 1}]个子项目 ?`;
+  return `是否确认删除 [${menuName}] 及 [${menuAndChildren.length - 1}]个子项目 ?`;
 }
 
 /**
