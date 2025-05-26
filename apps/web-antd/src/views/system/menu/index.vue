@@ -8,14 +8,16 @@ import { computed, ref } from 'vue';
 
 import { useAccess } from '@vben/access';
 import { Fallback, Page, useVbenDrawer } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 import { eachTree, getVxePopupContainer, treeToList } from '@vben/utils';
 
 import { Popconfirm, Space, Switch, Tooltip } from 'ant-design-vue';
 
-import { preserveTreeTableState, useVbenVxeGrid } from '#/adapter/vxe-table';
+import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { menuCascadeRemove, menuList, menuRemove } from '#/api/system/menu';
 
 import { columns, querySchema } from './data';
+import { preserveTreeTableState } from './helper';
 import menuDrawer from './menu-drawer.vue';
 
 /**
