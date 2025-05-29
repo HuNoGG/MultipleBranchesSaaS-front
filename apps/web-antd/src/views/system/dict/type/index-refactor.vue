@@ -1,7 +1,9 @@
+<!-- 使用vxe实现成本最小 且自带虚拟滚动  -->
 <script setup lang="ts">
+import type { VxeGridProps } from '#/adapter/vxe-table';
 import type { DictType } from '#/api/system/dict/dict-type-model';
 
-import { computed, h, onMounted, ref } from 'vue';
+import { h, ref, shallowRef, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 import { cn } from '@vben/utils';
@@ -14,15 +16,15 @@ import {
   SyncOutlined,
 } from '@ant-design/icons-vue';
 import {
-  Empty,
+  Alert,
   Input,
   Modal,
   Popconfirm,
   Space,
-  Spin,
   Tooltip,
 } from 'ant-design-vue';
 
+import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import {
   dictTypeExport,
   dictTypeList,
@@ -34,25 +36,60 @@ import { commonDownloadExcel } from '#/utils/file/download';
 import { emitter } from '../mitt';
 import dictTypeModal from './dict-type-modal.vue';
 
-const dictList = ref<DictType[]>([]);
-const loading = ref(false);
+const tableAllData = shallowRef<DictType[]>([]);
+const gridOptions: VxeGridProps = {
+  columns: [
+    {
+      title: 'name',
+      field: 'render',
+      slots: { default: 'render' },
+    },
+  ],
+  height: 'auto',
+  keepSource: true,
+  pagerConfig: {
+    enabled: false,
+  },
+  proxyConfig: {
+    ajax: {
+      query: async () => {
+        const resp = await dictTypeList();
 
-async function loadData(reset = false) {
-  loading.value = true;
+        total.value = resp.total;
+        tableAllData.value = resp.rows;
+        return resp;
+      },
+    },
+  },
+  rowConfig: {
+    keyField: 'dictId',
+    // 高亮当前行
+    isCurrent: true,
+  },
+  cellConfig: {
+    height: 60,
+  },
+  showHeader: false,
+  toolbarConfig: {
+    enabled: false,
+  },
+  // 开启虚拟滚动
+  scrollY: {
+    enabled: false,
+    gt: 0,
+  },
+  rowClassName: 'cursor-pointer',
+  id: 'system-dict-data-index',
+};
 
-  if (reset) {
-    currentRowId.value = '';
-    emitter.emit('rowClick', '');
-    searchValue.value = '';
-  }
-
-  const resp = await dictTypeList();
-  dictList.value = resp.rows;
-
-  loading.value = false;
-}
-
-onMounted(loadData);
+const [BasicTable, tableApi] = useVbenVxeGrid({
+  gridOptions,
+  gridEvents: {
+    cellClick: ({ row }) => {
+      handleRowClick(row);
+    },
+  },
+});
 
 const [DictTypeModal, modalApi] = useVbenModal({
   connectedComponent: dictTypeModal,
@@ -70,7 +107,13 @@ async function handleEdit(record: DictType) {
 
 async function handleDelete(row: DictType) {
   await dictTypeRemove([row.dictId]);
-  // TODO: 刷新表格
+  await tableApi.query();
+}
+
+async function handleReset() {
+  currentRowId.value = '';
+  searchValue.value = '';
+  await tableApi.query();
 }
 
 function handleDownloadExcel() {
@@ -86,40 +129,51 @@ function handleRefreshCache() {
     },
     onOk: async () => {
       await refreshDictTypeCache();
-      // TODO: 刷新表格
+      await tableApi.query();
     },
   });
 }
 
+const lastDictType = ref<string>('');
 const currentRowId = ref<null | number | string>(null);
 function handleRowClick(row: DictType) {
+  if (lastDictType.value === row.dictType) {
+    return;
+  }
   currentRowId.value = row.dictId;
   emitter.emit('rowClick', row.dictType);
 }
 
 const searchValue = ref('');
-const searchResultList = computed(() => {
-  if (!searchValue.value) {
-    return dictList.value;
+const total = ref(0);
+watch(searchValue, (value) => {
+  if (!tableApi) {
+    return;
   }
-  const names = dictList.value.filter((item) =>
-    item.dictName.includes(searchValue.value),
-  );
-  const types = dictList.value.filter((item) =>
-    item.dictType.includes(searchValue.value),
-  );
-  return [...new Set([...names, ...types])];
+  if (value) {
+    const names = tableAllData.value.filter((item) =>
+      item.dictName.includes(searchValue.value),
+    );
+    const types = tableAllData.value.filter((item) =>
+      item.dictType.includes(searchValue.value),
+    );
+    const filtered = [...new Set([...names, ...types])];
+    total.value = filtered.length;
+    tableApi.grid.loadData(filtered);
+  } else {
+    total.value = tableAllData.value.length;
+    tableApi.grid.loadData(tableAllData.value);
+  }
 });
-
-const emptyImage = Empty.PRESENTED_IMAGE_SIMPLE;
 </script>
 
 <template>
   <div
     :class="
       cn(
-        'bg-background flex h-[calc(100vh-120px)] w-[360px] flex-col overflow-y-hidden',
+        'bg-background flex max-h-[100vh] w-[360px] flex-col overflow-y-hidden',
         'rounded-lg',
+        'dict-type-card',
       )
     "
   >
@@ -127,17 +181,34 @@ const emptyImage = Empty.PRESENTED_IMAGE_SIMPLE;
       <span class="font-semibold">字典项列表</span>
       <Space>
         <Tooltip title="刷新缓存">
-          <a-button :icon="h(SyncOutlined)" @click="handleRefreshCache" />
+          <a-button
+            v-access:code="['system:dict:edit']"
+            :icon="h(SyncOutlined)"
+            @click="handleRefreshCache"
+          />
         </Tooltip>
         <Tooltip :title="$t('pages.common.export')">
-          <a-button :icon="h(ExportOutlined)" @click="handleDownloadExcel" />
+          <a-button
+            v-access:code="['system:dict:export']"
+            :icon="h(ExportOutlined)"
+            @click="handleDownloadExcel"
+          />
         </Tooltip>
         <Tooltip :title="$t('pages.common.add')">
-          <a-button :icon="h(PlusOutlined)" @click="handleAdd" />
+          <a-button
+            v-access:code="['system:dict:add']"
+            :icon="h(PlusOutlined)"
+            @click="handleAdd"
+          />
         </Tooltip>
       </Space>
     </div>
     <div class="flex flex-1 flex-col overflow-y-hidden p-4">
+      <Alert
+        class="mb-4"
+        show-icon
+        message="如果你的数据量大 自行开启虚拟滚动"
+      />
       <Input
         placeholder="搜索字典项名称/类型"
         v-model:value="searchValue"
@@ -145,40 +216,28 @@ const emptyImage = Empty.PRESENTED_IMAGE_SIMPLE;
       >
         <template #addonAfter>
           <Tooltip title="重置/刷新">
-            <SyncOutlined @click="loadData(true)" />
+            <SyncOutlined
+              v-access:code="['system:dict:edit']"
+              @click="handleReset"
+            />
           </Tooltip>
         </template>
       </Input>
-      <div
-        v-if="searchResultList.length > 0"
-        class="mt-4 flex cursor-pointer flex-col overflow-y-auto"
-      >
-        <Spin :spinning="loading">
-          <div
-            :class="
-              cn(
-                'flex items-center justify-between rounded-lg px-2 py-2',
-                {
-                  'bg-accent-hover': item.dictId === currentRowId,
-                },
-                'border-b',
-              )
-            "
-            v-for="item in searchResultList"
-            :key="item.dictId"
-            @click="handleRowClick(item)"
-          >
-            <div class="flex flex-col overflow-hidden">
+      <BasicTable class="flex-1 overflow-hidden">
+        <template #render="{ row: item }">
+          <div :class="cn('flex items-center justify-between px-2 py-2')">
+            <div class="flex flex-col items-baseline overflow-hidden">
               <span class="font-medium">{{ item.dictName }}</span>
-              <span
-                class="min-w-0 text-ellipsis whitespace-nowrap text-sm text-[#666]"
+              <div
+                class="max-w-full overflow-hidden text-ellipsis whitespace-nowrap"
               >
                 {{ item.dictType }}
-              </span>
+              </div>
             </div>
-            <div class="flex items-center gap-3 text-sm">
+            <div class="flex items-center gap-3 text-[17px]">
               <EditOutlined
                 class="text-primary"
+                v-access:code="['system:dict:edit']"
                 @click.stop="handleEdit(item)"
               />
               <Popconfirm
@@ -186,21 +245,37 @@ const emptyImage = Empty.PRESENTED_IMAGE_SIMPLE;
                 :title="`确认删除 [${item.dictName}]?`"
                 @confirm="handleDelete(item)"
               >
-                <DeleteOutlined class="text-destructive" @click.stop="" />
+                <DeleteOutlined
+                  v-access:code="['system:dict:remove']"
+                  class="text-destructive"
+                  @click.stop=""
+                />
               </Popconfirm>
             </div>
           </div>
-        </Spin>
-      </div>
-      <Empty
-        :image="emptyImage"
-        class="mt-4"
-        v-if="searchResultList.length === 0"
-      />
+        </template>
+      </BasicTable>
     </div>
-    <div class="border-t px-4 py-3">
-      共 {{ searchResultList.length }} 条数据
-    </div>
-    <DictTypeModal />
+    <div class="border-t px-4 py-3">共 {{ total }} 条数据</div>
+    <DictTypeModal @reload="tableApi.query()" />
   </div>
 </template>
+
+<style lang="scss">
+.dict-type-card {
+  .vxe-grid {
+    padding: 12px 0 0;
+
+    .vxe-body--row {
+      &.row--current {
+        // 选中行背景色
+        background-color: hsl(var(--accent-hover)) !important;
+      }
+    }
+  }
+
+  .ant-alert {
+    padding: 6px 12px;
+  }
+}
+</style>
