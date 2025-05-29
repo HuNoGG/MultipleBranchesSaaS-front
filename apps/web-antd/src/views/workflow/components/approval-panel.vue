@@ -41,8 +41,8 @@ import {
 import { renderDict } from '#/utils/render';
 
 import { approvalModal, approvalRejectionModal, flowInterfereModal } from '.';
-import FlowPreview from '../components/flow-preview/index.vue';
 import ApprovalDetails from './approval-details.vue';
+import FlowPreview from './flow-preview.vue';
 import { approveWithReasonModal } from './helper';
 import userSelectModal from './user-select-modal.vue';
 
@@ -443,10 +443,7 @@ async function handleCopy(text: string) {
           />
         </TabPane>
         <TabPane key="2" tab="审批流程图">
-          <FlowPreview
-            v-if="currentFlowInfo.defChart"
-            :data="currentFlowInfo.defChart.defJson"
-          />
+          <FlowPreview :instance-id="currentFlowInfo.instanceId" />
         </TabPane>
       </Tabs>
     </div>
