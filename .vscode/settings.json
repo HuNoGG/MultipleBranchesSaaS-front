@@ -241,6 +241,7 @@
     "napi",
     "nolebase",
     "rollup",
+    "tinymce",
     "vitest"
   ]
 }
