@@ -91,6 +91,7 @@ const gridOptions: VxeGridProps = {
   toolbarConfig: {
     enabled: false,
   },
+  cellClassName: 'cursor-pointer',
 };
 
 const [BasicTable, tableApi] = useVbenVxeGrid({ formOptions, gridOptions });
