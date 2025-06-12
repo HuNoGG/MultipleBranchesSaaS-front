@@ -202,6 +202,9 @@ const events = computed(() => {
 </template>
 
 <style lang="scss">
+// 展开层元素z-index
+$dropdown-index: 2025;
+
 @mixin tinymce-valid-fail($color) {
   .app-tinymce {
     // 最外层的tinymce容器
@@ -219,7 +222,11 @@ const events = computed(() => {
 
 .tox.tox-silver-sink.tox-tinymce-aux {
   /** 该样式默认为1300的zIndex  */
-  z-index: 2025;
+  z-index: $dropdown-index;
+}
+
+.tox-fullscreen .tox.tox-tinymce-aux {
+  z-index: $dropdown-index !important;
 }
 
 .app-tinymce {
@@ -248,5 +255,10 @@ const events = computed(() => {
   $error-color: hsl(var(--destructive));
 
   @include tinymce-valid-fail($error-color);
+}
+
+// 全屏下样式处理 不去掉transform位置会异常
+div[role='dialog']:has(.tox.tox-tinymce.tox-fullscreen) {
+  transform: none !important;
 }
 </style>
