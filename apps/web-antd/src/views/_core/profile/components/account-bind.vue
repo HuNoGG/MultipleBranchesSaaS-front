@@ -1,108 +1,68 @@
 <script setup lang="tsx">
-import type { VxeGridProps } from '@vben/plugins/vxe-table';
-
 import type { BindItem } from '../../oauth-common';
 
-import { computed, ref, unref } from 'vue';
+import type { SocialInfo } from '#/api/system/social/model';
 
-import { useVbenVxeGrid } from '@vben/plugins/vxe-table';
+import { onMounted, ref } from 'vue';
 
-import { Alert, Avatar, Card, List, ListItem, Modal } from 'ant-design-vue';
+import {
+  Alert,
+  Avatar,
+  Card,
+  List,
+  ListItem,
+  Modal,
+  Tooltip,
+} from 'ant-design-vue';
 
 import { authUnbinding } from '#/api';
 import { socialList } from '#/api/system/social';
 
 import { accountBindList, handleAuthBinding } from '../../oauth-common';
 
-function buttonText(item: BindItem) {
-  return item.bound ? '已绑定' : '绑定';
+interface BindItemWithInfo extends BindItem {
+  info?: SocialInfo;
+  bind?: boolean;
 }
 
-/**
- * 已经绑定的平台
- */
-const boundPlatformsList = ref<string[]>([]);
-const bindList = computed<BindItem[]>(() => {
-  const list = [...accountBindList];
+const bindList = ref<BindItemWithInfo[]>([]);
+
+async function loadData() {
+  const resp = await socialList();
+
+  const list: BindItemWithInfo[] = [...accountBindList];
   list.forEach((item) => {
-    item.bound = !!unref(boundPlatformsList).includes(item.source);
+    /**
+     * 平台转小写
+     */
+    item.bound = resp
+      .map((social) => social.source.toLowerCase())
+      .includes(item.source.toLowerCase());
+    /**
+     * 添加info信息
+     */
+    if (item.bound) {
+      item.info = resp.find(
+        (social) => social.source.toLowerCase() === item.source,
+      );
+    }
   });
-  return list;
-});
-
-const gridOptions: VxeGridProps = {
-  columns: [
-    {
-      field: 'source',
-      title: '绑定平台',
-    },
-    {
-      slots: {
-        default: ({ row }) => {
-          return <Avatar src={row.avatar} />;
-        },
-      },
-      field: 'avatar',
-      title: '头像',
-    },
-    {
-      align: 'center',
-      field: 'userName',
-      title: '账号',
-    },
-    {
-      align: 'center',
-      slots: {
-        default: 'action',
-      },
-      title: '操作',
-    },
-  ],
-  height: 220,
-  keepSource: true,
-  pagerConfig: {
-    enabled: false,
-  },
-  toolbarConfig: {
-    enabled: false,
-  },
-  proxyConfig: {
-    ajax: {
-      query: async () => {
-        const resp = await socialList();
-        /**
-         * 平台转小写
-         * 已经绑定的平台
-         */
-        boundPlatformsList.value = resp.map((item) =>
-          item.source.toLowerCase(),
-        );
-        return {
-          rows: resp,
-        };
-      },
-    },
-  },
-  rowConfig: {
-    isCurrent: false,
-    keyField: 'id',
-  },
-  id: 'profile-bind-table',
-};
-
-const [BasicTable, tableApi] = useVbenVxeGrid({
-  gridOptions,
-});
+  bindList.value = list;
+}
+onMounted(loadData);
 
 /**
  * 解绑账号
  */
-function handleUnbind(record: Record<string, any>) {
+function handleUnbind(record: BindItemWithInfo) {
+  if (!record.info) {
+    return;
+  }
   Modal.confirm({
-    content: `确定解绑[${record.source}]平台的[${record.userName}]账号吗？`,
+    content: `确定解绑[${record.source}]平台的[${record.info.userName}]账号吗？`,
     async onOk() {
-      await authUnbinding(record.id);
-      await tableApi.reload();
+      await authUnbinding(record.info!.id);
+      await loadData();
     },
     title: '提示',
     type: 'warning',
@@ -112,26 +72,34 @@ function handleUnbind(record: Record<string, any>) {
 
 <template>
   <div class="flex flex-col gap-[16px]">
-    <BasicTable>
-      <template #action="{ row }">
-        <a-button type="link" @click="handleUnbind(row)">解绑</a-button>
-      </template>
-    </BasicTable>
     <div class="pb-3">
       <List
         :data-source="bindList"
-        :grid="{ gutter: 8, xs: 1, sm: 1, md: 2, lg: 3, xl: 3, xxl: 3 }"
+        :grid="{ gutter: 8, xs: 1, sm: 1, md: 1, lg: 2, xl: 2, xxl: 3 }"
       >
         <template #renderItem="{ item }">
           <ListItem>
             <Card>
               <div class="flex w-full items-center gap-4">
-                <component
-                  :is="item.avatar"
-                  v-if="item.avatar"
-                  :style="item?.style ?? {}"
-                  class="size-[40px]"
-                />
+                <Tooltip>
+                  <template #title>
+                    <template v-if="!item.bound">
+                      绑定 {{ item.source }} 账号
+                    </template>
+                    <template v-if="item.bound && item.info">
+                      <div class="flex flex-col items-center gap-2 p-2">
+                        <Avatar :size="30" :src="item.info.avatar" />
+                        <div>{{ item.info.nickName }}</div>
+                      </div>
+                    </template>
+                  </template>
+                  <component
+                    :is="item.avatar"
+                    v-if="item.avatar"
+                    :style="item?.style ?? {}"
+                    class="size-[40px] cursor-help"
+                  />
+                </Tooltip>
                 <div class="flex flex-1 items-center justify-between">
                   <div class="flex flex-col">
                     <h4
@@ -144,12 +112,15 @@ function handleUnbind(record: Record<string, any>) {
                     </span>
                   </div>
                   <a-button
-                    :disabled="item.bound"
                     size="small"
-                    type="link"
-                    @click="handleAuthBinding(item.source)"
+                    :type="item.bound ? 'default' : 'link'"
+                    @click="
+                      item.bound
+                        ? handleUnbind(item)
+                        : handleAuthBinding(item.source)
+                    "
                   >
-                    {{ buttonText(item) }}
+                    {{ item.bound ? '取消绑定' : '绑定' }}
                   </a-button>
                 </div>
               </div>
