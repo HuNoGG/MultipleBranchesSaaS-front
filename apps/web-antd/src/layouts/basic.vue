@@ -138,7 +138,7 @@ watch(
         :avatar
         :menus
         :text="userStore.userInfo?.realName"
-        :description="userStore.userInfo?.email"
+        :description="userStore.userInfo?.email || '未设置邮箱'"
         :tag-text="userStore.userInfo?.username"
         @logout="handleLogout"
       />
