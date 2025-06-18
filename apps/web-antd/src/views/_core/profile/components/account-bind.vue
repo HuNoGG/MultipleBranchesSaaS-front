@@ -5,15 +5,7 @@ import type { SocialInfo } from '#/api/system/social/model';
 
 import { onMounted, ref } from 'vue';
 
-import {
-  Alert,
-  Avatar,
-  Card,
-  List,
-  ListItem,
-  Modal,
-  Tooltip,
-} from 'ant-design-vue';
+import { Alert, Avatar, Card, Empty, Modal, Tooltip } from 'ant-design-vue';
 
 import { authUnbinding } from '#/api';
 import { socialList } from '#/api/system/social';
@@ -68,78 +60,83 @@ function handleUnbind(record: BindItemWithInfo) {
     type: 'warning',
   });
 }
+
+const simpleImage = Empty.PRESENTED_IMAGE_SIMPLE;
 </script>
 
 <template>
-  <div class="flex flex-col gap-[16px]">
-    <div class="pb-3">
-      <List
-        :data-source="bindList"
-        :grid="{ gutter: 8, xs: 1, sm: 1, md: 1, lg: 2, xl: 2, xxl: 3 }"
+  <div class="flex flex-col gap-4 pb-4">
+    <div
+      v-if="bindList.length > 0"
+      class="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3"
+    >
+      <Card
+        class="transition-shadow duration-300 hover:shadow-md"
+        v-for="item in bindList"
+        :key="item.source"
       >
-        <template #renderItem="{ item }">
-          <ListItem>
-            <Card>
-              <div class="flex w-full items-center gap-4">
-                <Tooltip>
-                  <template #title>
-                    <template v-if="!item.bound">
-                      绑定 {{ item.source }} 账号
-                    </template>
-                    <template v-if="item.bound && item.info">
+        <div class="flex w-full items-center gap-4">
+          <component
+            :is="item.avatar"
+            v-if="item.avatar"
+            :style="item?.style ?? {}"
+            class="size-[40px]"
+          />
+          <div class="flex flex-1 items-center justify-between">
+            <div class="flex flex-col">
+              <h4 class="mb-[4px] text-[14px] text-black/85 dark:text-white/85">
+                {{ item.title }}
+              </h4>
+              <span class="text-black/45 dark:text-white/45">
+                <template v-if="!item.bound">
+                  {{ item.description }}
+                </template>
+                <template v-if="item.bound && item.info">
+                  <Tooltip>
+                    <template #title>
                       <div class="flex flex-col items-center gap-2 p-2">
-                        <Avatar :size="30" :src="item.info.avatar" />
-                        <div>{{ item.info.nickName }}</div>
+                        <Avatar :size="36" :src="item.info.avatar" />
+                        <div>绑定时间: {{ item.info.createTime }}</div>
                       </div>
                     </template>
-                  </template>
-                  <component
-                    :is="item.avatar"
-                    v-if="item.avatar"
-                    :style="item?.style ?? {}"
-                    class="size-[40px] cursor-help"
-                  />
-                </Tooltip>
-                <div class="flex flex-1 items-center justify-between">
-                  <div class="flex flex-col">
-                    <h4
-                      class="mb-[4px] text-[14px] text-black/85 dark:text-white/85"
-                    >
-                      {{ item.title }}
-                    </h4>
-                    <span class="text-black/45 dark:text-white/45">
-                      {{ item.description }}
-                    </span>
-                  </div>
-                  <a-button
-                    size="small"
-                    :type="item.bound ? 'default' : 'link'"
-                    @click="
-                      item.bound
-                        ? handleUnbind(item)
-                        : handleAuthBinding(item.source)
-                    "
-                  >
-                    {{ item.bound ? '取消绑定' : '绑定' }}
-                  </a-button>
-                </div>
-              </div>
-            </Card>
-          </ListItem>
-        </template>
-      </List>
-      <Alert message="说明" type="info">
-        <template #description>
-          <p>
-            需要添加第三方账号在
-            <span class="font-bold">
-              apps\web-antd\src\views\_core\oauth-common.ts
-            </span>
-            中accountBindList按模板添加
-          </p>
-        </template>
-      </Alert>
+                    <div class="cursor-pointer">
+                      已绑定: {{ item.info.nickName }}
+                    </div>
+                  </Tooltip>
+                </template>
+              </span>
+            </div>
+            <!-- TODO: 这里有优化空间? -->
+            <a-button
+              size="small"
+              :type="item.bound ? 'default' : 'link'"
+              @click="
+                item.bound ? handleUnbind(item) : handleAuthBinding(item.source)
+              "
+            >
+              {{ item.bound ? '取消绑定' : '绑定' }}
+            </a-button>
+          </div>
+        </div>
+      </Card>
     </div>
+    <div
+      v-if="bindList.length === 0"
+      class="flex items-center justify-center rounded-lg border py-4"
+    >
+      <Empty :image="simpleImage" description="暂无可绑定的第三方账户" />
+    </div>
+    <Alert message="说明" type="info">
+      <template #description>
+        <p>
+          需要添加第三方账号在
+          <span class="font-bold">
+            apps\web-antd\src\views\_core\oauth-common.ts
+          </span>
+          中accountBindList按模板添加
+        </p>
+      </template>
+    </Alert>
   </div>
 </template>
 
