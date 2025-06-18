@@ -211,7 +211,12 @@ if (enableShortcutKey.value) {
               v-if="tagText || text || $slots.tagText"
               class="text-foreground mb-1 flex items-center text-sm font-medium"
             >
-              {{ text }}
+              <div
+                class="max-w-[100px] overflow-hidden text-ellipsis break-keep"
+                :title="text"
+              >
+                {{ text }}
+              </div>
               <slot name="tagText">
                 <Badge v-if="tagText" class="ml-2 text-green-400">
                   {{ tagText }}
