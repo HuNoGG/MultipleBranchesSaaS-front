@@ -219,7 +219,12 @@ if (enableShortcutKey.value) {
               </div>
               <slot name="tagText">
                 <Badge v-if="tagText" class="ml-2 text-green-400">
-                  {{ tagText }}
+                  <div
+                    class="max-w-[50px] overflow-hidden text-ellipsis"
+                    :title="tagText"
+                  >
+                    {{ tagText }}
+                  </div>
                 </Badge>
               </slot>
             </div>
