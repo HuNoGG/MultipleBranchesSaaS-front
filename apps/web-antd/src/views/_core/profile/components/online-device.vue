@@ -40,7 +40,7 @@ onMounted(loadData);
   <div class="mb-6">
     <Spin :spinning="loading">
       <div
-        class="grid max-h-[calc(100vh/2)] min-h-[100px] grid-cols-1 gap-4 overflow-auto lg:grid-cols-2 2xl:grid-cols-3"
+        class="grid max-h-[calc(100vh/2)] min-h-[100px] grid-cols-1 gap-4 overflow-auto lg:grid-cols-2"
       >
         <Card
           v-for="online in list"
