@@ -30,7 +30,18 @@ const loading = shallowRef(false);
 async function loadData() {
   loading.value = true;
   const resp = await onlineDeviceList();
-  list.value = resp.rows;
+  list.value = resp.rows.map((item) => {
+    // Windows 10 or Windows Server 2016 太长了 分割一下
+    let value = item.os;
+    if (value) {
+      const split = value.split(' or ');
+      if (split.length === 2) {
+        value = split[0]!;
+      }
+      item.os = value;
+    }
+    return item;
+  });
   loading.value = false;
 }
 onMounted(loadData);
