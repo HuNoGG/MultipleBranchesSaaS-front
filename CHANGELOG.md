@@ -3,6 +3,7 @@
 **FEATURES**
 
 - Tinymce添加在antd原生表单/useVbenForm下的校验样式
+- useVbenForm 增加 Cascader(级联选择器) 组件
 
 **BUG FIX**
 
