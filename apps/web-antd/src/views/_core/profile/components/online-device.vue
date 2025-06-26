@@ -1,93 +1,52 @@
 <script setup lang="ts">
 import type { Recordable } from '@vben/types';
 
-import type { OnlineUser } from '#/api/monitor/online/model';
+import type { VxeGridProps } from '#/adapter/vxe-table';
 
-import { onMounted, shallowRef } from 'vue';
+import { Popconfirm } from 'ant-design-vue';
 
-import { getPopupContainer } from '@vben/utils';
-
-import {
-  Card,
-  Descriptions,
-  DescriptionsItem,
-  Popconfirm,
-  Spin,
-  Tag,
-} from 'ant-design-vue';
-import dayjs from 'dayjs';
-
+import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { forceLogout2, onlineDeviceList } from '#/api/monitor/online';
-import { renderBrowserIcon, renderOsIcon } from '#/utils/render';
+import { columns } from '#/views/monitor/online/data';
+
+const gridOptions: VxeGridProps = {
+  columns,
+  keepSource: true,
+  pagerConfig: {
+    enabled: false,
+  },
+  proxyConfig: {
+    ajax: {
+      query: async () => {
+        return await onlineDeviceList();
+      },
+    },
+  },
+  rowConfig: {
+    keyField: 'tokenId',
+  },
+};
+
+const [BasicTable, tableApi] = useVbenVxeGrid({ gridOptions });
 
 async function handleForceOffline(row: Recordable<any>) {
   await forceLogout2(row.tokenId);
-  await loadData();
+  await tableApi.query();
 }
-
-const list = shallowRef<OnlineUser[]>([]);
-const loading = shallowRef(false);
-async function loadData() {
-  loading.value = true;
-  const resp = await onlineDeviceList();
-  list.value = resp.rows.map((item) => {
-    // Windows 10 or Windows Server 2016 太长了 分割一下
-    let value = item.os;
-    if (value) {
-      const split = value.split(' or ');
-      if (split.length === 2) {
-        value = split[0]!;
-      }
-      item.os = value;
-    }
-    return item;
-  });
-  loading.value = false;
-}
-onMounted(loadData);
 </script>
 
 <template>
-  <div class="mb-6">
-    <Spin :spinning="loading">
-      <div
-        class="grid max-h-[calc(100vh/2)] min-h-[100px] grid-cols-1 gap-4 overflow-auto lg:grid-cols-2 2xl:grid-cols-3"
-      >
-        <Card
-          v-for="online in list"
-          :key="online.tokenId"
-          size="small"
-          :title="`登录时间: ${dayjs(online.loginTime).format('YYYY-MM-DD HH:mm:ss')}`"
+  <div>
+    <BasicTable table-title="我的在线设备">
+      <template #action="{ row }">
+        <Popconfirm
+          :title="`确认强制下线[${row.userName}]?`"
+          placement="left"
+          @confirm="handleForceOffline(row)"
         >
-          <template #extra>
-            <Popconfirm
-              title="确认强制下线?"
-              placement="left"
-              :get-popup-container="getPopupContainer"
-              @confirm="handleForceOffline(online)"
-            >
-              <a-button danger size="small">强制下线</a-button>
-            </Popconfirm>
-          </template>
-          <Descriptions size="middle" :column="2">
-            <DescriptionsItem label="登录平台">
-              <Tag>{{ online.deviceType }}</Tag>
-            </DescriptionsItem>
-            <DescriptionsItem label="浏览器">
-              <component :is="renderBrowserIcon(online.browser)" />
-            </DescriptionsItem>
-            <DescriptionsItem label="系统">
-              <component :is="renderOsIcon(online.os)" />
-            </DescriptionsItem>
-            <DescriptionsItem label="IP地址">
-              {{ online.ipaddr }}
-            </DescriptionsItem>
-            <DescriptionsItem label="登录地址">
-              {{ online.loginLocation }}
-            </DescriptionsItem>
-          </Descriptions>
-        </Card>
-      </div>
-    </Spin>
+          <a-button danger size="small" type="link">强制下线</a-button>
+        </Popconfirm>
+      </template>
+    </BasicTable>
   </div>
 </template>
