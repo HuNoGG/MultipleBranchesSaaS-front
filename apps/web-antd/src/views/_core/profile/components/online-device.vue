@@ -51,7 +51,7 @@ onMounted(loadData);
   <div class="mb-6">
     <Spin :spinning="loading">
       <div
-        class="grid max-h-[calc(100vh/2)] min-h-[100px] grid-cols-1 gap-4 overflow-auto lg:grid-cols-2"
+        class="grid max-h-[calc(100vh/2)] min-h-[100px] grid-cols-1 gap-4 overflow-auto lg:grid-cols-2 2xl:grid-cols-3"
       >
         <Card
           v-for="online in list"
@@ -73,9 +73,6 @@ onMounted(loadData);
             <DescriptionsItem label="登录平台">
               <Tag>{{ online.deviceType }}</Tag>
             </DescriptionsItem>
-            <DescriptionsItem label="登录地址">
-              {{ online.loginLocation }}
-            </DescriptionsItem>
             <DescriptionsItem label="浏览器">
               <component :is="renderBrowserIcon(online.browser)" />
             </DescriptionsItem>
@@ -84,6 +81,9 @@ onMounted(loadData);
             </DescriptionsItem>
             <DescriptionsItem label="IP地址">
               {{ online.ipaddr }}
+            </DescriptionsItem>
+            <DescriptionsItem label="登录地址">
+              {{ online.loginLocation }}
             </DescriptionsItem>
           </Descriptions>
         </Card>
