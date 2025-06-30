@@ -49,6 +49,7 @@
     "@vueuse/core": "catalog:",
     "@vueuse/integrations": "catalog:",
     "codemirror": "6.0.1",
+    "json-bigint": "catalog:",
     "qrcode": "catalog:",
     "tippy.js": "catalog:",
     "vditor": "3.10.9",
