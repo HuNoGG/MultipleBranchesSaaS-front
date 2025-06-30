@@ -8,6 +8,7 @@
 **BUG FIX**
 
 - 菜单管理 路由地址的必填项不生效
+- withDefaultPlaceholder中placeholder 在keepalive & 语言切换 & tab切换 显示不变的问题
 
 **REFACTOR**
 
