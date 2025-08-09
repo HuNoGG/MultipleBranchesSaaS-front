@@ -81,6 +81,14 @@ export const localMenuList: RouteRecordStringComponent[] = [
           badgeVariants: 'bg-primary',
         },
       },
+      {
+        name: 'AutomaticScheduling',
+        path: '/automatic-scheduling',
+        component: '/saas-multiple-branches/index',
+        meta: {
+          title: '自动排班',
+        },
+      },
     ],
   },
   {
