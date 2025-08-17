@@ -2,8 +2,8 @@ import type { RouteRecordStringComponent } from '@vben/types';
 
 import { $t } from '@vben/locales';
 
+// eslint-disable-next-line no-empty-pattern
 const {
-  version,
   // vite inject-metadata 插件注入的全局变量
 } = __VBEN_ADMIN_METADATA__ || {};
 
@@ -58,29 +58,29 @@ export const localMenuList: RouteRecordStringComponent[] = [
           title: 'page.dashboard.workspace',
         },
       },
-      {
-        name: 'VbenDocument',
-        path: '/vben-admin/document',
-        component: 'IFrameView',
-        meta: {
-          icon: 'lucide:book-open-text',
-          iframeSrc: 'https://dapdap.top',
-          keepAlive: true,
-          title: $t('demos.vben.document'),
-        },
-      },
-      {
-        name: 'V5UpdateLog',
-        path: '/changelog',
-        component: '/演示使用自行删除/changelog/index',
-        meta: {
-          icon: 'lucide:book-open-text',
-          keepAlive: true,
-          title: '更新记录',
-          badge: `当前: ${version}`,
-          badgeVariants: 'bg-primary',
-        },
-      },
+      // {
+      //   name: 'VbenDocument',
+      //   path: '/vben-admin/document',
+      //   component: 'IFrameView',
+      //   meta: {
+      //     icon: 'lucide:book-open-text',
+      //     iframeSrc: 'https://dapdap.top',
+      //     keepAlive: true,
+      //     title: $t('demos.vben.document'),
+      //   },
+      // },
+      // {
+      //   name: 'V5UpdateLog',
+      //   path: '/changelog',
+      //   component: '/演示使用自行删除/changelog/index',
+      //   meta: {
+      //     icon: 'lucide:book-open-text',
+      //     keepAlive: true,
+      //     title: '更新记录',
+      //     badge: `当前: ${version}`,
+      //     badgeVariants: 'bg-primary',
+      //   },
+      // },
       {
         name: 'AutomaticScheduling',
         path: '/automatic-scheduling',
