@@ -89,6 +89,12 @@ export const localMenuList: RouteRecordStringComponent[] = [
           title: '自动排班',
         },
       },
+      {
+        path: '/schedule/history',
+        name: 'ScheduleHistory',
+        component: '/saas-multiple-branches/ScheduleHistory.vue',
+        meta: { title: '排班历史' },
+      },
     ],
   },
   {

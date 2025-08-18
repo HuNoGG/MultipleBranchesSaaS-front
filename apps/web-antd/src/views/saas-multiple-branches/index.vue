@@ -2,11 +2,14 @@
 import type { TableColumnType } from 'ant-design-vue';
 
 import { onMounted, reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { InfoCircleOutlined } from '@ant-design/icons-vue';
 import { Modal } from 'ant-design-vue';
 
 import ScheduleModal from './ScheduleModal.vue';
+
+const router = useRouter();
 
 // ========== 数据模型定义 ==========
 
@@ -132,6 +135,9 @@ const scheduleTableColumns: TableColumnType[] = [
 ];
 
 // ========== 班次调整 Modal 状态管理 ==========
+const goToHistory = () => {
+  router.push('/schedule/history');
+};
 const shiftModalState = reactive({
   visible: false,
   date: '',
@@ -354,6 +360,7 @@ onMounted(() => {
           <div class="card-title-wrapper">
             <span>周度排班表</span>
             <a-space>
+              <a-button @click="goToHistory">查看历史排班</a-button>
               <a-button @click="handleResetSchedule">重置排班表</a-button>
               <a-button type="primary" @click="isScheduleModalVisible = true">
                 智能排班
