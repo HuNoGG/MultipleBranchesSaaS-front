@@ -8,12 +8,12 @@ export const querySchema: FormSchemaGetter = () => [
   {
     component: 'Input',
     fieldName: 'requestStoreId',
-    label: '申请方分店ID (A分店)',
+    label: '申请方分店ID ',
   },
   {
     component: 'Input',
     fieldName: 'providerStoreId',
-    label: '提供方分店ID(B分店)',
+    label: '提供方分店ID',
   },
   {
     component: 'Input',
@@ -23,7 +23,7 @@ export const querySchema: FormSchemaGetter = () => [
   {
     component: 'Input',
     fieldName: 'transferDetails',
-    label: '调货内容(品项,数量)示例:[{"item":"商品A","qty":10}]',
+    label: '调货内容(品项,数量)',
   },
   {
     component: 'RadioGroup',
@@ -34,7 +34,7 @@ export const querySchema: FormSchemaGetter = () => [
       optionType: 'button',
     },
     fieldName: 'approvalStatus',
-    label: '状态(字典: 待审核, 待确认, 已完成)',
+    label: '状态',
   },
   {
     component: 'DatePicker',
@@ -68,7 +68,7 @@ export const querySchema: FormSchemaGetter = () => [
       optionType: 'button',
     },
     fieldName: 'status',
-    label: '状态(0正常1停用)',
+    label: '状态',
   },
 ];
 
@@ -81,11 +81,11 @@ export const columns: VxeGridProps['columns'] = [
     field: 'id',
   },
   {
-    title: '申请方分店ID (A分店)',
+    title: '申请方分店ID',
     field: 'requestStoreId',
   },
   {
-    title: '提供方分店ID(B分店)',
+    title: '提供方分店ID',
     field: 'providerStoreId',
   },
   {
@@ -93,11 +93,11 @@ export const columns: VxeGridProps['columns'] = [
     field: 'requestUserId',
   },
   {
-    title: '调货内容(品项,数量)示例:[{"item":"商品A","qty":10}]',
+    title: '调货内容(品项,数量)',
     field: 'transferDetails',
   },
   {
-    title: '状态(字典: 待审核, 待确认, 已完成)',
+    title: '状态',
     field: 'approvalStatus',
     slots: {
       default: ({ row }) => {
@@ -119,7 +119,7 @@ export const columns: VxeGridProps['columns'] = [
     field: 'responsibleUserId',
   },
   {
-    title: '状态(0正常1停用)',
+    title: '状态',
     field: 'status',
   },
   {
@@ -146,13 +146,13 @@ export const modalSchema: FormSchemaGetter = () => [
     },
   },
   {
-    label: '申请方分店ID (A分店)',
+    label: '申请方分店ID',
     fieldName: 'requestStoreId',
     component: 'Input',
     rules: 'required',
   },
   {
-    label: '提供方分店ID(B分店)',
+    label: '提供方分店ID',
     fieldName: 'providerStoreId',
     component: 'Input',
     rules: 'required',
@@ -164,13 +164,13 @@ export const modalSchema: FormSchemaGetter = () => [
     rules: 'required',
   },
   {
-    label: '调货内容(品项,数量)示例:[{"item":"商品A","qty":10}]',
+    label: '调货内容(品项,数量)',
     fieldName: 'transferDetails',
     component: 'Input',
     rules: 'required',
   },
   {
-    label: '状态(字典: 待审核, 待确认, 已完成)',
+    label: '状态',
     fieldName: 'approvalStatus',
     component: 'RadioGroup',
     componentProps: {
@@ -210,7 +210,7 @@ export const modalSchema: FormSchemaGetter = () => [
     rules: 'required',
   },
   {
-    label: '状态(0正常1停用)',
+    label: '状态',
     fieldName: 'status',
     component: 'RadioGroup',
     componentProps: {

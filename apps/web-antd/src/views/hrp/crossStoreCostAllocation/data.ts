@@ -17,12 +17,12 @@ export const querySchema: FormSchemaGetter = () => [
       options: getDictOptions('hrp_cost_allocation_type'),
     },
     fieldName: 'allocationType',
-    label: '分摊方式(字典: 依时数, 依比例)',
+    label: '分摊方式',
   },
   {
     component: 'Input',
     fieldName: 'allocationRules',
-    label: '分摊规则 示例:{"storeA": 50, "storeB":50} (比例分摊)',
+    label: '分摊规则',
   },
   {
     component: 'RadioGroup',
@@ -31,7 +31,7 @@ export const querySchema: FormSchemaGetter = () => [
       optionType: 'button',
     },
     fieldName: 'status',
-    label: '状态(0正常1停用)',
+    label: '状态',
   },
 ];
 
@@ -48,7 +48,7 @@ export const columns: VxeGridProps['columns'] = [
     field: 'userId',
   },
   {
-    title: '分摊方式(字典: 依时数, 依比例)',
+    title: '分摊方式',
     field: 'allocationType',
     slots: {
       default: ({ row }) => {
@@ -58,11 +58,11 @@ export const columns: VxeGridProps['columns'] = [
     },
   },
   {
-    title: '分摊规则 示例:{"storeA": 50, "storeB":50} (比例分摊)',
+    title: '分摊规则',
     field: 'allocationRules',
   },
   {
-    title: '状态(0正常1停用)',
+    title: '状态',
     field: 'status',
   },
   {

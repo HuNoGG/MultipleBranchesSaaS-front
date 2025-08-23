@@ -27,7 +27,7 @@ export const querySchema: FormSchemaGetter = () => [
       options: getDictOptions('hrp_attendance_exception_type'),
     },
     fieldName: 'exceptionType',
-    label: '异常类型(字典: 忘记打卡, 迟到未请假, 早退未请假, 缺勤)',
+    label: '异常类型',
   },
   {
     component: 'DatePicker',
@@ -37,7 +37,7 @@ export const querySchema: FormSchemaGetter = () => [
       valueFormat: 'YYYY-MM-DD HH:mm:ss',
     },
     fieldName: 'originalClockIn',
-    label: '原始打卡(上班)',
+    label: '上班打卡',
   },
   {
     component: 'DatePicker',
@@ -47,7 +47,7 @@ export const querySchema: FormSchemaGetter = () => [
       valueFormat: 'YYYY-MM-DD HH:mm:ss',
     },
     fieldName: 'originalClockOut',
-    label: '原始打卡(下班)',
+    label: '下班打卡',
   },
   {
     component: 'DatePicker',
@@ -57,7 +57,7 @@ export const querySchema: FormSchemaGetter = () => [
       valueFormat: 'YYYY-MM-DD HH:mm:ss',
     },
     fieldName: 'correctedClockIn',
-    label: '修正后打卡(上班)',
+    label: '修正上班打卡',
   },
   {
     component: 'DatePicker',
@@ -67,7 +67,7 @@ export const querySchema: FormSchemaGetter = () => [
       valueFormat: 'YYYY-MM-DD HH:mm:ss',
     },
     fieldName: 'correctedClockOut',
-    label: '修正后打卡(下班)',
+    label: '修正下班打卡',
   },
   {
     component: 'RadioGroup',
@@ -78,7 +78,7 @@ export const querySchema: FormSchemaGetter = () => [
       optionType: 'button',
     },
     fieldName: 'approvalStatus',
-    label: '状态(字典: 待处理, 已修正)',
+    label: '状态',
   },
   {
     component: 'Input',
@@ -92,7 +92,7 @@ export const querySchema: FormSchemaGetter = () => [
       optionType: 'button',
     },
     fieldName: 'status',
-    label: '状态(0正常1停用)',
+    label: '状态',
   },
 ];
 
@@ -113,7 +113,7 @@ export const columns: VxeGridProps['columns'] = [
     field: 'exceptionDate',
   },
   {
-    title: '异常类型(字典: 忘记打卡, 迟到未请假, 早退未请假, 缺勤)',
+    title: '异常类型',
     field: 'exceptionType',
     slots: {
       default: ({ row }) => {
@@ -123,23 +123,23 @@ export const columns: VxeGridProps['columns'] = [
     },
   },
   {
-    title: '原始打卡(上班)',
+    title: '上班打卡',
     field: 'originalClockIn',
   },
   {
-    title: '原始打卡(下班)',
+    title: '下班打卡',
     field: 'originalClockOut',
   },
   {
-    title: '修正后打卡(上班)',
+    title: '修正上班打卡',
     field: 'correctedClockIn',
   },
   {
-    title: '修正后打卡(下班)',
+    title: '修正下班打卡',
     field: 'correctedClockOut',
   },
   {
-    title: '状态(字典: 待处理, 已修正)',
+    title: '状态',
     field: 'approvalStatus',
     slots: {
       default: ({ row }) => {
@@ -149,11 +149,11 @@ export const columns: VxeGridProps['columns'] = [
     },
   },
   {
-    title: '审核人 ID',
+    title: '审核人',
     field: 'approvedBy',
   },
   {
-    title: '状态(0正常1停用)',
+    title: '状态',
     field: 'status',
   },
   {

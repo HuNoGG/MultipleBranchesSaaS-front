@@ -10,7 +10,7 @@ export const querySchema: FormSchemaGetter = () => [
   {
     component: 'Input',
     fieldName: 'scheduleId',
-    label: '关联的排班记录ID',
+    label: '排班记录ID',
   },
   {
     component: 'DatePicker',
@@ -57,7 +57,7 @@ export const columns: VxeGridProps['columns'] = [
     field: 'userId',
   },
   {
-    title: '关联的排班记录ID',
+    title: '排班记录ID',
     field: 'scheduleId',
   },
   {

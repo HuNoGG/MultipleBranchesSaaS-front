@@ -1,280 +1,542 @@
 <script setup lang="ts">
 import type { TableColumnType } from 'ant-design-vue';
 
-import { computed, h, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
-import { LeftOutlined, RightOutlined } from '@ant-design/icons-vue';
-import { message } from 'ant-design-vue';
-import dayjs from 'dayjs';
+import {
+  CalendarOutlined,
+  LeftOutlined,
+  RightOutlined,
+} from '@ant-design/icons-vue';
+import { Modal } from 'ant-design-vue';
+import dayjs, { Dayjs } from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
-
-import { getScheduleHistory } from '#/api/hrp/schedules'; // 引入API
 
 dayjs.extend(weekOfYear);
 
-// ========== 数据模型定义 =========
-interface Schedule {
-  id: number;
-  shiftName: string;
-  shiftStartTime: string;
-  shiftEndTime: string;
-  skillName: string;
-  attendanceStatus: '忘记打卡' | '早退' | '正常' | '缺勤' | '迟到' | string;
-}
-
+// ========== 数据模型 ==========
 interface Employee {
-  userId: number;
-  userName: string;
-  employeeType: string;
+  id: number;
+  name: string;
+  type: '兼职' | '正职';
+  skills: string[];
 }
-
+interface ShiftHistory {
+  position: string;
+  timeRange: string;
+  actualTimeRange: string;
+  status: '代班' | '假期' | '增补' | '早退' | '旷工' | '正常' | '请假' | '迟到';
+  tag?: string; // 增补人员的标签
+}
 interface ScheduleRow {
   key: number;
   employee: Employee;
-  dailySchedules: Record<string, Schedule[]>;
+  [day: string]: any;
 }
 
-// ========== 状态管理 =========
-const loading = ref(true);
-const activeStoreId = ref(1);
-const currentWeekStart = ref(dayjs().subtract(1, 'week').startOf('week')); // 默认显示上周
-const employeeList = ref<Employee[]>([]);
-const scheduleRows = ref<ScheduleRow[]>([]);
-
-// ========== 计算属性 =========
-const weekDays = computed(() => {
-  const days = [];
-  for (let i = 0; i < 7; i++) {
-    const day = currentWeekStart.value.add(i, 'day');
-    days.push({
-      key: day.format('YYYY-MM-DD'),
-      label: day.format('ddd'),
-      date: day.format('M/D'),
-    });
-  }
-  return days;
+// ========== 状态管理 ==========
+const currentWeekStart = ref(dayjs().startOf('week'));
+const isAddPersonModalVisible = ref(false);
+const addPersonForm = reactive({
+  dayKey: null,
+  personType: 'internal', // internal | external
+  employeeId: null,
+  employeeName: '',
+  timeRange: null,
+  position: '',
+  tag: '',
 });
 
-const columns = computed<TableColumnType[]>(() => [
+// ========== Mock 数据 ==========
+const employees = reactive<Employee[]>([
+  { id: 1, name: '张小花', type: '正职', skills: ['柜台', '外场'] },
+  { id: 2, name: '李小明', type: '正职', skills: ['内场', '洗碗'] },
+  { id: 3, name: '王小红', type: '兼职', skills: ['外场', '清洁'] },
+]);
+const scheduleData = reactive<ScheduleRow[]>([]);
+
+// ========== 计算属性 ==========
+const weekDateRange = computed<[Dayjs, Dayjs]>(() => [
+  currentWeekStart.value,
+  currentWeekStart.value.endOf('week'),
+]);
+
+const weekDays = computed(() => {
+  return Array.from({ length: 7 }).map((_, i) => {
+    const date = currentWeekStart.value.add(i, 'day');
+    return {
+      label: `${date.format('dddd')} (${date.format('M.DD')})`,
+      key: date.format('YYYY-MM-DD'),
+      date,
+    };
+  });
+});
+
+const scheduleTableColumns = computed<TableColumnType[]>(() => [
   {
     title: '员工',
-    dataIndex: 'employee',
-    key: 'employee',
-    width: 150,
+    key: 'employeeName',
+    dataIndex: ['employee', 'name'],
     fixed: 'left',
+    width: 120,
   },
   ...weekDays.value.map((day) => ({
-    title: `${day.date} (${day.label})`,
-    dataIndex: day.key,
+    title: day.label,
     key: day.key,
-    width: 180,
+    dataIndex: day.key,
     align: 'center',
+    width: 200,
   })),
 ]);
 
-const statusMap = {
-  正常: { color: '#87d068', text: '正常' },
-  迟到: { color: '#f50', text: '迟到' },
-  早退: { color: '#ffa940', text: '早退' },
-  缺勤: { color: '#d9d9d9', text: '缺勤' },
-  忘记打卡: { color: '#2db7f5', text: '忘打卡' },
+// ========== 方法 ==========
+const generateMockSchedule = () => {
+  scheduleData.length = 0;
+  const statuses: ShiftHistory['status'][] = [
+    '正常',
+    '迟到',
+    '早退',
+    '旷工',
+    '请假',
+    '代班',
+  ];
+  employees.forEach((emp) => {
+    const row: ScheduleRow = { key: emp.id, employee: emp };
+    weekDays.value.forEach((day) => {
+      if (Math.random() > 0.15) {
+        const status = statuses[Math.floor(Math.random() * statuses.length)];
+        row[day.key] = {
+          position: '柜台',
+          timeRange: '10:50-18:00',
+          actualTimeRange: status === '迟到' ? '10:53-18:01' : '10:48-17:50',
+          status,
+        };
+      } else {
+        row[day.key] = null; // 休息
+      }
+    });
+    scheduleData.push(row);
+  });
 };
 
-// ========== 方法 =========
-const fetchData = async () => {
-  loading.value = true;
-  try {
-    const params = {
-      storeId: activeStoreId.value,
-      startDate: currentWeekStart.value.format('YYYY-MM-DD'),
-      endDate: currentWeekStart.value.endOf('week').format('YYYY-MM-DD'),
-    };
-    const data = await getScheduleHistory(params);
+const changeWeek = (direction: -1 | 1) => {
+  currentWeekStart.value = currentWeekStart.value.add(direction, 'week');
+  generateMockSchedule();
+};
 
-    employeeList.value = data.employees.map((e) => ({
-      userId: e.userId,
-      userName: e.userName,
-      employeeType: e.employeeType,
-    }));
-
-    scheduleRows.value = employeeList.value.map((emp) => {
-      const dailySchedules = data.scheduleRows[emp.userId] || {};
-      return {
-        key: emp.userId,
-        employee: emp,
-        dailySchedules,
-      };
-    });
-  } catch (error) {
-    console.error('获取排班历史失败:', error);
-    message.error('获取排班历史失败');
-  } finally {
-    loading.value = false;
+const onDateChange = (dates) => {
+  if (dates && dates[0]) {
+    currentWeekStart.value = dates[0].startOf('week');
+    generateMockSchedule();
   }
 };
 
-const prevWeek = () => {
-  currentWeekStart.value = currentWeekStart.value.subtract(1, 'week');
+const getCellStyle = (shift: ShiftHistory) => {
+  if (!shift) return {};
+  const styleMap = {
+    迟到: { backgroundColor: '#fff1f0' },
+    早退: { backgroundColor: '#fff1f0' },
+    旷工: { backgroundColor: '#fff1f0' },
+    请假: { backgroundColor: '#fffbe6' },
+    代班: { backgroundColor: '#e6f7ff' },
+    增补: { backgroundColor: '#f6ffed' },
+    假期: { backgroundColor: '#fafafa' },
+    正常: { backgroundColor: '#f0f2f5' },
+  };
+  return styleMap[shift.status] || {};
 };
 
-const nextWeek = () => {
-  currentWeekStart.value = currentWeekStart.value.add(1, 'week');
+const getStatusTextColor = (shift: ShiftHistory) => {
+  if (!shift) return 'inherit';
+  const colorMap = {
+    迟到: '#f5222d',
+    早退: '#f5222d',
+    旷工: '#f5222d',
+    请假: '#d48806',
+    代班: '#1890ff',
+    增补: '#52c41a',
+  };
+  return colorMap[shift.status] || 'inherit';
 };
 
-const getStatusInfo = (status: string) => {
-  return statusMap[status] || { color: '#108ee9', text: status };
+const getCornerFlagStyle = (shift: ShiftHistory) => {
+  if (!shift || shift.status === '正常' || shift.status === '假期')
+    return { display: 'none' };
+  const color = getStatusTextColor(shift);
+  return {
+    borderTopColor: color,
+    borderRightColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderLeftColor: color,
+  };
 };
 
-// ========== 生命周期钩子 =========
-onMounted(fetchData);
-watch([activeStoreId, currentWeekStart], fetchData);
+const getAttendanceColor = (shift: ShiftHistory) => {
+  return shift.status === '迟到' || shift.status === '早退' ? 'red' : 'inherit';
+};
+
+const handleDayHoliday = ({ key: holidayType }, dayKey: string) => {
+  scheduleData.forEach((row) => {
+    const statusText = holidayType === 'all-day' ? '整天放假' : '半天放假';
+    row[dayKey] = {
+      position: statusText,
+      timeRange: '',
+      actualTimeRange: '',
+      status: '假期',
+      tag: statusText,
+    };
+  });
+};
+
+const handleAddPerson = () => {
+  const {
+    dayKey,
+    personType,
+    employeeId,
+    employeeName,
+    timeRange,
+    position,
+    tag,
+  } = addPersonForm;
+  if (
+    !dayKey ||
+    (personType === 'internal' && !employeeId) ||
+    (personType === 'external' && !employeeName) ||
+    !timeRange ||
+    !position
+  ) {
+    Modal.error({ title: '请填写完整信息' });
+    return;
+  }
+
+  let targetRow: ScheduleRow | undefined;
+
+  if (personType === 'internal') {
+    targetRow = scheduleData.find((r) => r.employee.id === employeeId);
+  } else {
+    // 外部人员，检查是否已存在
+    targetRow = scheduleData.find((r) => r.employee.name === employeeName);
+    if (!targetRow) {
+      const newEmployee = {
+        id: Date.now(),
+        name: employeeName,
+        type: '兼职',
+        skills: ['临时'],
+      };
+      employees.push(newEmployee);
+      const newRow = { key: newEmployee.id, employee: newEmployee };
+      weekDays.value.forEach((day) => (newRow[day.key] = null));
+      scheduleData.push(newRow);
+      targetRow = newRow;
+    }
+  }
+
+  if (targetRow) {
+    targetRow[dayKey] = {
+      position,
+      timeRange: `${dayjs(timeRange[0]).format('HH:mm')}-${dayjs(timeRange[1]).format('HH:mm')}`,
+      actualTimeRange: '未打卡',
+      status: '增补',
+      tag: tag || '增补',
+    };
+  }
+
+  isAddPersonModalVisible.value = false;
+  // 重置表单
+  Object.assign(addPersonForm, {
+    dayKey: null,
+    personType: 'internal',
+    employeeId: null,
+    employeeName: '',
+    timeRange: null,
+    position: '',
+    tag: '',
+  });
+};
+
+onMounted(() => {
+  generateMockSchedule();
+});
 </script>
 
 <template>
-  <div class="schedule-history-container">
-    <a-breadcrumb class="breadcrumb-section">
-      <a-breadcrumb-item>HRP</a-breadcrumb-item>
-      <a-breadcrumb-item>排班管理</a-breadcrumb-item>
-      <a-breadcrumb-item>排班历史</a-breadcrumb-item>
-    </a-breadcrumb>
-
-    <a-card class="filter-card">
+  <div class="schedule-history-container p-4">
+    <!-- 顶部筛选栏 -->
+    <a-card :bordered="false" class="filter-card">
       <a-form layout="inline">
-        <a-form-item label="选择分店">
-          <a-select v-model:value="activeStoreId" style="width: 200px" disabled>
-            <a-select-option :value="1">XXX总店</a-select-option>
+        <a-form-item label="员工类型">
+          <a-select placeholder="请选择" style="width: 120px" allow-clear>
+            <a-select-option value="FullTime">正职</a-select-option>
+            <a-select-option value="PartTime">兼职</a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item>
-          <a-button-group>
-            <a-button :icon="h(LeftOutlined)" @click="prevWeek" />
-            <a-button :icon="h(RightOutlined)" @click="nextWeek" />
-          </a-button-group>
+        <a-form-item label="员工姓名">
+          <a-input placeholder="请输入" style="width: 150px" allow-clear />
+        </a-form-item>
+        <a-form-item label="员工工号">
+          <a-input placeholder="请输入" style="width: 150px" allow-clear />
         </a-form-item>
         <a-form-item>
-          <span class="text-lg font-semibold">
-            {{ currentWeekStart.format('YYYY年MM月DD日') }} -
-            {{ currentWeekStart.endOf('week').format('YYYY年MM月DD日') }}
-          </span>
+          <a-button type="primary">查询</a-button>
+          <a-button style="margin-left: 8px">重置</a-button>
         </a-form-item>
       </a-form>
     </a-card>
 
-    <a-card class="schedule-card">
+    <!-- 主排班记录卡片 -->
+    <a-card :bordered="false" class="schedule-card">
       <template #title>
         <div class="card-title-wrapper">
-          <span>历史排班与考勤</span>
+          <span>历史记录</span>
+          <a-space align="center">
+            <!-- 周切换器 -->
+            <a-button-group>
+              <a-button @click="changeWeek(-1)">
+                <LeftOutlined />
+              </a-button>
+              <a-range-picker
+                :value="weekDateRange"
+                :bordered="false"
+                style="width: 240px"
+                @change="onDateChange"
+              />
+              <a-button @click="changeWeek(1)">
+                <RightOutlined />
+              </a-button>
+            </a-button-group>
+
+            <a-button @click="isAddPersonModalVisible = true">增补</a-button>
+            <a-button type="primary">导出</a-button>
+          </a-space>
         </div>
       </template>
+
+      <!-- 历史排班表格 -->
       <a-table
-        :columns="columns"
-        :data-source="scheduleRows"
-        :loading="loading"
+        :columns="scheduleTableColumns"
+        :data-source="scheduleData"
         :pagination="false"
-        :scroll="{ x: 1500, y: 'calc(100vh - 350px)' }"
         bordered
-        size="small"
+        size="middle"
+        :scroll="{ x: 1200 }"
       >
+        <!-- 自定义表头，用于添加假期设置icon -->
+        <template #headerCell="{ column }">
+          <div
+            v-if="weekDays.map((d) => d.key).includes(column.key as string)"
+            class="date-header"
+          >
+            <span>{{ column.title }}</span>
+            <a-dropdown :trigger="['click']">
+              <CalendarOutlined class="holiday-icon" />
+              <template #overlay>
+                <a-menu @click="(e) => handleDayHoliday(e, column.key)">
+                  <a-menu-item key="all-day">整天放假</a-menu-item>
+                  <a-menu-item key="half-day">半天放假</a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
+          </div>
+        </template>
+
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'employee'">
-            <div>
-              <span class="font-semibold">{{ record.employee.userName }}</span>
-              <a-tag
-                :color="
-                  record.employee.employeeType === '全职' ? 'blue' : 'green'
-                "
-                class="ml-2"
-              >
-                {{ record.employee.employeeType }}
+          <template v-if="column.key === 'employeeName'">
+            <a-space align="center">
+              <span>{{ record.employee.name }}</span>
+              <a-tag v-if="record.employee.type === '正职'" color="blue">
+                正
               </a-tag>
-            </div>
+              <a-tag v-if="record.employee.type === '兼职'" color="orange">
+                兼
+              </a-tag>
+            </a-space>
           </template>
-          <template v-else>
-            <div v-if="record.dailySchedules[column.key]">
-              <div
-                v-for="schedule in record.dailySchedules[column.key]"
-                :key="schedule.id"
-                class="shift-cell-history"
-              >
-                <div class="shift-info">
-                  <span class="font-bold"
-                    >{{ schedule.shiftName }} ({{ schedule.skillName }})</span
-                  >
-                  <span class="time-range text-xs">
-                    {{ schedule.shiftStartTime.substring(0, 5) }} -
-                    {{ schedule.shiftEndTime.substring(0, 5) }}
-                  </span>
+          <template
+            v-else-if="
+              weekDays.map((d) => d.key).includes(column.key as string)
+            "
+          >
+            <!-- 使用 Popover 展示详细信息 -->
+            <a-popover trigger="click" placement="right">
+              <template #content>
+                <div class="popover-content">
+                  <a-avatar size="large">
+                    {{ record.employee.name.charAt(0) }}
+                  </a-avatar>
+                  <div class="employee-info">
+                    <h3>{{ record.employee.name }}</h3>
+                    <p>{{ column.title }}</p>
+                  </div>
+                  <a-descriptions :column="1" size="small" class="mt-4">
+                    <a-descriptions-item label="上班时间">
+                      {{ record[column.key]?.timeRange }}
+                    </a-descriptions-item>
+                    <a-descriptions-item label="本日考勤">
+                      <span :class="getAttendanceColor(record[column.key])">
+                        {{ record[column.key]?.actualTimeRange }}
+                      </span>
+                    </a-descriptions-item>
+                    <a-descriptions-item label="员工ID">
+                      {{ record.employee.id }}
+                    </a-descriptions-item>
+                    <a-descriptions-item label="类型">
+                      {{ record.employee.type }}
+                    </a-descriptions-item>
+                    <a-descriptions-item label="技能">
+                      <a-tag
+                        v-for="skill in record.employee.skills"
+                        :key="skill"
+                      >
+                        {{ skill }}
+                      </a-tag>
+                    </a-descriptions-item>
+                  </a-descriptions>
                 </div>
-                <a-tag
-                  :color="getStatusInfo(schedule.attendanceStatus).color"
-                  class="status-tag"
+              </template>
+              <div
+                v-if="record[column.key]"
+                class="shift-cell-history"
+                :style="getCellStyle(record[column.key])"
+              >
+                <div
+                  class="corner-flag"
+                  :style="getCornerFlagStyle(record[column.key])"
+                ></div>
+                <span
+                  class="status-text"
+                  :style="{ color: getStatusTextColor(record[column.key]) }"
                 >
-                  {{ getStatusInfo(schedule.attendanceStatus).text }}
-                </a-tag>
+                  【{{ record[column.key].tag || record[column.key].status }}】
+                </span>
+                <span>
+                  {{ record[column.key].position }}
+                  {{ record[column.key].timeRange }}
+                </span>
               </div>
-            </div>
+              <div v-else class="rest-cell">休息</div>
+            </a-popover>
           </template>
         </template>
       </a-table>
     </a-card>
+
+    <!-- 增补人员 Modal -->
+    <a-modal
+      v-model:visible="isAddPersonModalVisible"
+      title="增补排班"
+      @ok="handleAddPerson"
+    >
+      <a-form :model="addPersonForm" layout="vertical">
+        <a-form-item label="选择日期">
+          <a-select
+            v-model:value="addPersonForm.dayKey"
+            :options="weekDays.map((d) => ({ value: d.key, label: d.label }))"
+          />
+        </a-form-item>
+        <a-form-item label="人员类型">
+          <a-radio-group v-model:value="addPersonForm.personType">
+            <a-radio value="internal">内部员工</a-radio>
+            <a-radio value="external">外部人员</a-radio>
+          </a-radio-group>
+        </a-form-item>
+        <a-form-item label="员工姓名">
+          <a-select
+            v-if="addPersonForm.personType === 'internal'"
+            v-model:value="addPersonForm.employeeId"
+            placeholder="请选择内部员工"
+            :options="employees.map((e) => ({ value: e.id, label: e.name }))"
+          />
+          <a-input
+            v-else
+            v-model:value="addPersonForm.employeeName"
+            placeholder="请输入外部人员姓名"
+          />
+        </a-form-item>
+        <a-form-item label="标签 (例如: 体验工)">
+          <a-input v-model:value="addPersonForm.tag" placeholder="请输入标签" />
+        </a-form-item>
+        <a-form-item label="班次时间">
+          <a-time-range-picker
+            v-model:value="addPersonForm.timeRange"
+            format="HH:mm"
+          />
+        </a-form-item>
+        <a-form-item label="岗位">
+          <a-input v-model:value="addPersonForm.position" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
 <style lang="less" scoped>
 .schedule-history-container {
-  padding: 16px;
   background-color: #f0f2f5;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
 }
-
-.breadcrumb-section,
-.filter-card {
+.filter-card,
+.schedule-card {
   margin-bottom: 16px;
 }
-
-.schedule-card {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-
-  :deep(.ant-card-body) {
-    padding: 0;
-    flex-grow: 1;
-    overflow: auto;
-  }
-}
-
 .card-title-wrapper {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
+.date-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  .holiday-icon {
+    cursor: pointer;
+    color: #888;
+    &:hover {
+      color: #1890ff;
+    }
+  }
+}
 .shift-cell-history {
   position: relative;
   padding: 8px;
+  padding-left: 12px;
   border-radius: 4px;
-  background-color: #fafafa;
-  border: 1px solid #e8e8e8;
-  margin-bottom: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  overflow: hidden;
+  text-align: left;
 
-  &:last-child {
-    margin-bottom: 0;
-  }
-
-  .shift-info {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .status-tag {
+  .corner-flag {
     position: absolute;
-    top: 4px;
-    right: 4px;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 12px;
   }
+
+  .status-text {
+    font-weight: 500;
+  }
+}
+.rest-cell {
+  color: #aaa;
+}
+.popover-content {
+  width: 280px;
+  .employee-info {
+    display: inline-block;
+    vertical-align: top;
+    margin-left: 16px;
+    h3 {
+      margin-bottom: 0;
+    }
+    p {
+      color: #888;
+    }
+  }
+}
+.mt-4 {
+  margin-top: 16px;
 }
 </style>

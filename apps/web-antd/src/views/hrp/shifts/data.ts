@@ -4,18 +4,13 @@ import type { VxeGridProps } from '#/adapter/vxe-table';
 export const querySchema: FormSchemaGetter = () => [
   {
     component: 'Input',
-    fieldName: 'storeId',
-    label: '所属分店 ID',
-  },
-  {
-    component: 'Input',
     fieldName: 'name',
-    label: '班别名称(如:早班)',
+    label: '班别名称)',
   },
   {
     component: 'Input',
     fieldName: 'code',
-    label: '班别代码(如:早)',
+    label: '班别代码',
   },
   {
     component: 'DatePicker',
@@ -40,12 +35,12 @@ export const querySchema: FormSchemaGetter = () => [
   {
     component: 'Input',
     fieldName: 'isCrossDay',
-    label: '是否跨日(TRUE =是,FALSE =否)',
+    label: '是否跨日',
   },
   {
     component: 'Input',
     fieldName: 'colorCode',
-    label: '班表显示颜色(如:#FF5733)',
+    label: '班表显示颜色',
   },
   {
     component: 'RadioGroup',
@@ -54,7 +49,7 @@ export const querySchema: FormSchemaGetter = () => [
       optionType: 'button',
     },
     fieldName: 'status',
-    label: '状态(0正常1停用)',
+    label: '状态',
   },
 ];
 
@@ -71,11 +66,11 @@ export const columns: VxeGridProps['columns'] = [
     field: 'storeId',
   },
   {
-    title: '班别名称(如:早班)',
+    title: '班别名称',
     field: 'name',
   },
   {
-    title: '班别代码(如:早)',
+    title: '班别代码',
     field: 'code',
   },
   {
@@ -87,7 +82,7 @@ export const columns: VxeGridProps['columns'] = [
     field: 'endTime',
   },
   {
-    title: '是否跨日(TRUE =是,FALSE =否)',
+    title: '是否跨日',
     field: 'isCrossDay',
   },
   {
@@ -95,7 +90,7 @@ export const columns: VxeGridProps['columns'] = [
     field: 'colorCode',
   },
   {
-    title: '状态(0正常1停用)',
+    title: '状态',
     field: 'status',
   },
   {

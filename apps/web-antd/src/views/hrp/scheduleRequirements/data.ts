@@ -17,7 +17,7 @@ export const querySchema: FormSchemaGetter = () => [
       options: getDictOptions('hrp_schedule_day_type'),
     },
     fieldName: 'dayType',
-    label: '日期类型(字典: 平日, 假日, 特殊节日)',
+    label: '日期类型',
   },
   {
     component: 'Input',
@@ -34,15 +34,6 @@ export const querySchema: FormSchemaGetter = () => [
     fieldName: 'requiredCount',
     label: '需求人数',
   },
-  {
-    component: 'RadioGroup',
-    componentProps: {
-      buttonStyle: 'solid',
-      optionType: 'button',
-    },
-    fieldName: 'status',
-    label: '状态(0正常1停用)',
-  },
 ];
 
 // 需要使用i18n注意这里要改成getter形式 否则切换语言不会刷新
@@ -58,7 +49,7 @@ export const columns: VxeGridProps['columns'] = [
     field: 'storeId',
   },
   {
-    title: '日期类型(字典: 平日, 假日, 特殊节日)',
+    title: '日期类型',
     field: 'dayType',
     slots: {
       default: ({ row }) => {
@@ -79,10 +70,7 @@ export const columns: VxeGridProps['columns'] = [
     title: '需求人数',
     field: 'requiredCount',
   },
-  {
-    title: '状态(0正常1停用)',
-    field: 'status',
-  },
+
   {
     title: '备注',
     field: 'remark',
@@ -113,7 +101,7 @@ export const modalSchema: FormSchemaGetter = () => [
     rules: 'required',
   },
   {
-    label: '日期类型(字典: 平日, 假日, 特殊节日)',
+    label: '日期类型',
     fieldName: 'dayType',
     component: 'Select',
     componentProps: {
@@ -139,16 +127,7 @@ export const modalSchema: FormSchemaGetter = () => [
     fieldName: 'requiredCount',
     component: 'Input',
   },
-  {
-    label: '状态(0正常1停用)',
-    fieldName: 'status',
-    component: 'RadioGroup',
-    componentProps: {
-      buttonStyle: 'solid',
-      optionType: 'button',
-    },
-    rules: 'selectRequired',
-  },
+
   {
     label: '备注',
     fieldName: 'remark',

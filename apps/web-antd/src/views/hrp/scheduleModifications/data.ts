@@ -8,17 +8,17 @@ export const querySchema: FormSchemaGetter = () => [
   {
     component: 'Input',
     fieldName: 'scheduleId',
-    label: '关联的排班记录ID(原排班表主键)',
+    label: '关联的排班记录ID',
   },
   {
     component: 'Input',
     fieldName: 'originalUserId',
-    label: '原员工ID(修改前的排班员工)',
+    label: '原员工ID',
   },
   {
     component: 'Input',
     fieldName: 'newUserId',
-    label: '新员工ID(修改后的排班员工,change_type为'新增临时')',
+    label: '新员工ID',
   },
   {
     component: 'Select',
@@ -27,12 +27,12 @@ export const querySchema: FormSchemaGetter = () => [
       options: getDictOptions('hrp_schedule_change_type'),
     },
     fieldName: 'changeType',
-    label: '修改类型(字典: 调班, 替班, 新增临时)',
+    label: '修改类型',
   },
   {
     component: 'Input',
     fieldName: 'changedBy',
-    label: '修改人ID(操作修改的用户)',
+    label: '修改人ID',
   },
   {
     component: 'DatePicker',
@@ -55,19 +55,19 @@ export const columns: VxeGridProps['columns'] = [
     field: 'id',
   },
   {
-    title: '关联的排班记录ID(原排班表主键)',
+    title: '关联的排班记录ID',
     field: 'scheduleId',
   },
   {
-    title: '原员工ID(修改前的排班员工)',
+    title: '原员工ID',
     field: 'originalUserId',
   },
   {
-    title: '新员工ID(修改后的排班员工,change_type为'新增临时')',
+    title: '新员工ID',
     field: 'newUserId',
   },
   {
-    title: '修改类型(字典: 调班, 替班, 新增临时)',
+    title: '修改类型',
     field: 'changeType',
     slots: {
       default: ({ row }) => {
@@ -96,4 +96,3 @@ export const columns: VxeGridProps['columns'] = [
     width: 180,
   },
 ];
-

@@ -13,14 +13,7 @@ import { useVbenModal } from '@vben/common-ui';
 import { $t } from '@vben/locales';
 import { cloneDeep, getPopupContainer } from '@vben/utils';
 
-import {
-  Form,
-  FormItem,
-  Input,
-  RadioGroup,
-  Select,
-  Textarea,
-} from 'ant-design-vue';
+import { Form, FormItem, Input, Select, Textarea } from 'ant-design-vue';
 import { pick } from 'lodash-es';
 
 import {
@@ -65,8 +58,6 @@ const formRules = ref<AntdFormRules<UserProfileForm>>({
   employeeType: [{ required: true, message: '员工分类不能为空' }],
   mainStoreId: [{ required: true, message: '分店 ID不能为空' }],
   priorityScore: [{ required: true, message: '分配工作优先分数不能为空' }],
-  status: [{ required: true, message: '状态(0在职1离职)不能为空' }],
-  remark: [{ required: true, message: '备注不能为空' }],
 });
 
 /**
@@ -156,18 +147,10 @@ async function handleClosed() {
           :placeholder="$t('ui.formRules.required')"
         />
       </FormItem>
-      <FormItem label="分配工作优先分数" v-bind="validateInfos.priorityScore">
+      <FormItem label="优先分数" v-bind="validateInfos.priorityScore">
         <Input
           v-model:value="formData.priorityScore"
           :placeholder="$t('ui.formRules.required')"
-        />
-      </FormItem>
-      <FormItem label="状态(0在职1离职)" v-bind="validateInfos.status">
-        <RadioGroup
-          option-type="button"
-          button-style="solid"
-          v-model:value="formData.status"
-          :options="[]"
         />
       </FormItem>
       <FormItem label="备注" v-bind="validateInfos.remark">

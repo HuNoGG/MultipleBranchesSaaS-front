@@ -18,7 +18,7 @@ export const querySchema: FormSchemaGetter = () => [
       valueFormat: 'YYYY-MM-DD HH:mm:ss',
     },
     fieldName: 'leaveDate',
-    label: '期望休假日期',
+    label: '休假日期',
   },
   {
     component: 'RadioGroup',
@@ -29,16 +29,7 @@ export const querySchema: FormSchemaGetter = () => [
       optionType: 'button',
     },
     fieldName: 'approvalStatus',
-    label: '状态(字典: 已提交, 已锁定, 已取消)',
-  },
-  {
-    component: 'RadioGroup',
-    componentProps: {
-      buttonStyle: 'solid',
-      optionType: 'button',
-    },
-    fieldName: 'status',
-    label: '状态(0正常1停用)',
+    label: '审批状态',
   },
 ];
 
@@ -59,7 +50,7 @@ export const columns: VxeGridProps['columns'] = [
     field: 'leaveDate',
   },
   {
-    title: '状态(字典: 已提交, 已锁定, 已取消)',
+    title: '审批状态',
     field: 'approvalStatus',
     slots: {
       default: ({ row }) => {
@@ -68,10 +59,7 @@ export const columns: VxeGridProps['columns'] = [
       },
     },
   },
-  {
-    title: '状态(0正常1停用)',
-    field: 'status',
-  },
+
   {
     title: '备注',
     field: 'remark',

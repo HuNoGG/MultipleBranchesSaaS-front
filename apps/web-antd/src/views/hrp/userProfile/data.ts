@@ -22,16 +22,7 @@ export const querySchema: FormSchemaGetter = () => [
   {
     component: 'Input',
     fieldName: 'priorityScore',
-    label: '分配工作优先分数',
-  },
-  {
-    component: 'RadioGroup',
-    componentProps: {
-      buttonStyle: 'solid',
-      optionType: 'button',
-    },
-    fieldName: 'status',
-    label: '状态(0在职1离职)',
+    label: '优先分数',
   },
 ];
 
@@ -40,7 +31,7 @@ export const querySchema: FormSchemaGetter = () => [
 export const columns: VxeGridProps['columns'] = [
   { type: 'checkbox', width: 60 },
   {
-    title: '员工ID(关联系统用户表)',
+    title: '员工ID',
     field: 'userId',
   },
   {
@@ -58,13 +49,10 @@ export const columns: VxeGridProps['columns'] = [
     field: 'mainStoreId',
   },
   {
-    title: '分配工作优先分数',
+    title: '优先分数',
     field: 'priorityScore',
   },
-  {
-    title: '状态(0在职1离职)',
-    field: 'status',
-  },
+
   {
     title: '备注',
     field: 'remark',

@@ -5,13 +5,13 @@ export const querySchema: FormSchemaGetter = () => [
   {
     component: 'Input',
     fieldName: 'userId',
-    label: '申请人ID(关联系统用户表)',
+    label: '申请人ID',
   },
   {
     component: 'Select',
     componentProps: {},
     fieldName: 'leaveType',
-    label: '请假类型(如:事假,病假,年假,婚假)',
+    label: '请假类型',
   },
   {
     component: 'DatePicker',
@@ -21,7 +21,7 @@ export const querySchema: FormSchemaGetter = () => [
       valueFormat: 'YYYY-MM-DD HH:mm:ss',
     },
     fieldName: 'startTime',
-    label: '请假开始时间(精确到时分)',
+    label: '请假开始时间',
   },
   {
     component: 'DatePicker',
@@ -31,12 +31,12 @@ export const querySchema: FormSchemaGetter = () => [
       valueFormat: 'YYYY-MM-DD HH:mm:ss',
     },
     fieldName: 'endTime',
-    label: '请假结束时间(精确到时分)',
+    label: '请假结束时间',
   },
   {
     component: 'Input',
     fieldName: 'leaveDays',
-    label: '请假天数(自动计算,支持0.5天粒度)',
+    label: '请假天数',
   },
   {
     component: 'Textarea',
@@ -46,7 +46,7 @@ export const querySchema: FormSchemaGetter = () => [
   {
     component: 'Input',
     fieldName: 'attachmentUrl',
-    label: '附件链接(如病假证明、休假凭证)',
+    label: '附件链接',
   },
   {
     component: 'RadioGroup',
@@ -55,12 +55,12 @@ export const querySchema: FormSchemaGetter = () => [
       optionType: 'button',
     },
     fieldName: 'approvalStatus',
-    label: '审批状态(字典: 待审批, 已批准, 已驳回)',
+    label: '审批状态',
   },
   {
     component: 'Input',
     fieldName: 'approvedBy',
-    label: '审批人ID(关联系统用户表,审批后生效)',
+    label: '审批人ID',
   },
   {
     component: 'RadioGroup',
@@ -69,7 +69,7 @@ export const querySchema: FormSchemaGetter = () => [
       optionType: 'button',
     },
     fieldName: 'status',
-    label: '数据状态(0正常1停用/作废)',
+    label: '数据状态',
   },
 ];
 
@@ -82,23 +82,23 @@ export const columns: VxeGridProps['columns'] = [
     field: 'id',
   },
   {
-    title: '申请人ID(关联系统用户表)',
+    title: '申请人ID',
     field: 'userId',
   },
   {
-    title: '请假类型(如:事假,病假,年假,婚假)',
+    title: '请假类型',
     field: 'leaveType',
   },
   {
-    title: '请假开始时间(精确到时分)',
+    title: '请假开始时间',
     field: 'startTime',
   },
   {
-    title: '请假结束时间(精确到时分)',
+    title: '请假结束时间',
     field: 'endTime',
   },
   {
-    title: '请假天数(自动计算,支持0.5天粒度)',
+    title: '请假天数',
     field: 'leaveDays',
   },
   {
@@ -106,23 +106,23 @@ export const columns: VxeGridProps['columns'] = [
     field: 'reason',
   },
   {
-    title: '附件链接(如病假证明、休假凭证)',
+    title: '附件链接',
     field: 'attachmentUrl',
   },
   {
-    title: '审批状态(字典: 待审批, 已批准, 已驳回)',
+    title: '审批状态',
     field: 'approvalStatus',
   },
   {
-    title: '审批人ID(关联系统用户表,审批后生效)',
+    title: '审批人ID',
     field: 'approvedBy',
   },
   {
-    title: '数据状态(0正常1停用/作废)',
+    title: '数据状态',
     field: 'status',
   },
   {
-    title: '备注(如审批意见、特殊说明)',
+    title: '备注',
     field: 'remark',
   },
   {

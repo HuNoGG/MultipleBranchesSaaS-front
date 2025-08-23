@@ -5,16 +5,7 @@ export const querySchema: FormSchemaGetter = () => [
   {
     component: 'Input',
     fieldName: 'name',
-    label: '技能名称(如: 出锅,带位)',
-  },
-  {
-    component: 'RadioGroup',
-    componentProps: {
-      buttonStyle: 'solid',
-      optionType: 'button',
-    },
-    fieldName: 'status',
-    label: '状态(0正常1停用)',
+    label: '技能名称',
   },
 ];
 
@@ -23,16 +14,17 @@ export const querySchema: FormSchemaGetter = () => [
 export const columns: VxeGridProps['columns'] = [
   { type: 'checkbox', width: 60 },
   {
-    title: '技能唯一ID',
+    title: '技能ID',
     field: 'id',
   },
   {
-    title: '技能名称(如: 出锅,带位)',
+    title: '技能名称',
     field: 'name',
   },
   {
-    title: '状态(0正常1停用)',
+    title: '状态',
     field: 'status',
+    formatter: ({ cellValue }) => (cellValue === '0' ? '正常' : '停用'),
   },
   {
     title: '备注',
@@ -58,18 +50,23 @@ export const modalSchema: FormSchemaGetter = () => [
     },
   },
   {
-    label: '技能名称(如: 出锅,带位)',
+    label: '技能名称',
     fieldName: 'name',
     component: 'Input',
     rules: 'required',
   },
   {
-    label: '状态(0正常1停用)',
+    label: '状态',
     fieldName: 'status',
     component: 'RadioGroup',
+    defaultValue: 0,
     componentProps: {
       buttonStyle: 'solid',
       optionType: 'button',
+      options: [
+        { label: '正常', value: 0 },
+        { label: '停用', value: 1 },
+      ],
     },
     rules: 'selectRequired',
   },

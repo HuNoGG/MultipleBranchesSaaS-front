@@ -17,6 +17,20 @@ export function userProfileList(params?: UserProfileQuery) {
 }
 
 /**
+ * 获取当前店铺所有的员工与技能信息
+ * @param params
+ * @returns 员工档案扩展列表
+ */
+export function listUserprofileWithSkills(params?: UserProfileQuery) {
+  return requestClient.get<Array<UserProfileVO>>(
+    '/hrp/userProfile/listWithSkills',
+    {
+      params,
+    },
+  );
+}
+
+/**
  * 导出员工档案扩展列表
  * @param params
  * @returns 员工档案扩展列表

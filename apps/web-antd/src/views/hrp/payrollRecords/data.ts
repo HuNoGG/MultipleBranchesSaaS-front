@@ -55,16 +55,7 @@ export const querySchema: FormSchemaGetter = () => [
   {
     component: 'Input',
     fieldName: 'isFinalized',
-    label: '是否已确认(TRUE =是,FALSE = 否)',
-  },
-  {
-    component: 'RadioGroup',
-    componentProps: {
-      buttonStyle: 'solid',
-      optionType: 'button',
-    },
-    fieldName: 'status',
-    label: '状态(0正常1停用)',
+    label: '是否已确认',
   },
 ];
 
@@ -109,13 +100,10 @@ export const columns: VxeGridProps['columns'] = [
     field: 'finalSalary',
   },
   {
-    title: '是否已确认(TRUE =是,FALSE = 否)',
+    title: '是否已确认',
     field: 'isFinalized',
   },
-  {
-    title: '状态(0正常1停用)',
-    field: 'status',
-  },
+
   {
     title: '备注',
     field: 'remark',
