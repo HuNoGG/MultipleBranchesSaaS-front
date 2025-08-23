@@ -47,7 +47,7 @@ interface Store {
   name: string;
 }
 
-// ========== 状态管理 (移除Mock数据，添加loading和日期控制) ==========
+// ========== 状态管理  ==========
 const loading = ref(true);
 const activeStoreId = ref(1); // 默认为ID 1
 const isScheduleModalVisible = ref(false);
