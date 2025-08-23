@@ -25,6 +25,7 @@
   },
   "type": "module",
   "scripts": {
+
     "build": "cross-env NODE_OPTIONS=--max-old-space-size=8192 turbo build",
     "build:analyze": "turbo build:analyze",
     "build:antd": "pnpm run build --filter=@vben/web-antd",
@@ -75,7 +76,6 @@
     "cspell": "catalog:",
     "happy-dom": "catalog:",
     "is-ci": "catalog:",
-    "lefthook": "catalog:",
     "playwright": "catalog:",
     "rimraf": "catalog:",
     "tailwindcss": "catalog:",

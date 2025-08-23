@@ -1,0 +1,182 @@
+<!--
+使用antd原生Form生成 详细用法参考ant-design-vue Form组件文档
+vscode默认配置文件会自动格式化/移除未使用依赖
+-->
+<script setup lang="ts">
+import type { RuleObject } from 'ant-design-vue/es/form';
+
+import type { UserProfileForm } from '#/api/hrp/userProfile/model';
+
+import { computed, ref } from 'vue';
+
+import { useVbenModal } from '@vben/common-ui';
+import { $t } from '@vben/locales';
+import { cloneDeep, getPopupContainer } from '@vben/utils';
+
+import {
+  Form,
+  FormItem,
+  Input,
+  RadioGroup,
+  Select,
+  Textarea,
+} from 'ant-design-vue';
+import { pick } from 'lodash-es';
+
+import {
+  userProfileAdd,
+  userProfileInfo,
+  userProfileUpdate,
+} from '#/api/hrp/userProfile';
+import { getDictOptions } from '#/utils/dict';
+import { useBeforeCloseDiff } from '#/utils/popup';
+
+const emit = defineEmits<{ reload: [] }>();
+
+const isUpdate = ref(false);
+const title = computed(() => {
+  return isUpdate.value ? $t('pages.common.edit') : $t('pages.common.add');
+});
+
+/**
+ * 定义默认值 用于reset
+ */
+const defaultValues: Partial<UserProfileForm> = {
+  userId: undefined,
+  employeeType: undefined,
+  mainStoreId: undefined,
+  priorityScore: undefined,
+  status: undefined,
+  remark: undefined,
+};
+
+/**
+ * 表单数据ref
+ */
+const formData = ref(defaultValues);
+
+type AntdFormRules<T> = Partial<Record<keyof T, RuleObject[]>> & {
+  [key: string]: RuleObject[];
+};
+/**
+ * 表单校验规则
+ */
+const formRules = ref<AntdFormRules<UserProfileForm>>({
+  employeeType: [{ required: true, message: '员工分类不能为空' }],
+  mainStoreId: [{ required: true, message: '分店 ID不能为空' }],
+  priorityScore: [{ required: true, message: '分配工作优先分数不能为空' }],
+  status: [{ required: true, message: '状态(0在职1离职)不能为空' }],
+  remark: [{ required: true, message: '备注不能为空' }],
+});
+
+/**
+ * useForm解构出表单方法
+ */
+const { validate, validateInfos, resetFields } = Form.useForm(
+  formData,
+  formRules,
+);
+
+function customFormValueGetter() {
+  return JSON.stringify(formData.value);
+}
+
+const { onBeforeClose, markInitialized, resetInitialized } = useBeforeCloseDiff(
+  {
+    initializedGetter: customFormValueGetter,
+    currentGetter: customFormValueGetter,
+  },
+);
+
+const [BasicModal, modalApi] = useVbenModal({
+  class: 'w-[550px]',
+  fullscreenButton: false,
+  onBeforeClose,
+  onClosed: handleClosed,
+  onConfirm: handleConfirm,
+  onOpenChange: async (isOpen) => {
+    if (!isOpen) {
+      return null;
+    }
+    modalApi.modalLoading(true);
+
+    const { id } = modalApi.getData() as { id?: number | string };
+    isUpdate.value = !!id;
+
+    if (isUpdate.value && id) {
+      const record = await userProfileInfo(id);
+      // 只赋值存在的字段
+      const filterRecord = pick(record, Object.keys(defaultValues));
+      formData.value = filterRecord;
+    }
+    await markInitialized();
+
+    modalApi.modalLoading(false);
+  },
+});
+
+async function handleConfirm() {
+  try {
+    modalApi.lock(true);
+    await validate();
+    // 可能会做数据处理 使用cloneDeep深拷贝
+    const data = cloneDeep(formData.value);
+    await (isUpdate.value ? userProfileUpdate(data) : userProfileAdd(data));
+    resetInitialized();
+    emit('reload');
+    modalApi.close();
+  } catch (error) {
+    console.error(error);
+  } finally {
+    modalApi.lock(false);
+  }
+}
+
+async function handleClosed() {
+  formData.value = defaultValues;
+  resetFields();
+  resetInitialized();
+}
+</script>
+
+<template>
+  <BasicModal :title="title">
+    <Form :label-col="{ span: 4 }">
+      <FormItem label="员工分类" v-bind="validateInfos.employeeType">
+        <Select
+          v-model:value="formData.employeeType"
+          :options="getDictOptions('hrp_employee_type')"
+          :get-popup-container="getPopupContainer"
+          :placeholder="$t('ui.formRules.selectRequired')"
+        />
+      </FormItem>
+      <FormItem label="分店 ID" v-bind="validateInfos.mainStoreId">
+        <Input
+          v-model:value="formData.mainStoreId"
+          :placeholder="$t('ui.formRules.required')"
+        />
+      </FormItem>
+      <FormItem label="分配工作优先分数" v-bind="validateInfos.priorityScore">
+        <Input
+          v-model:value="formData.priorityScore"
+          :placeholder="$t('ui.formRules.required')"
+        />
+      </FormItem>
+      <FormItem label="状态(0在职1离职)" v-bind="validateInfos.status">
+        <RadioGroup
+          option-type="button"
+          button-style="solid"
+          v-model:value="formData.status"
+          :options="[]"
+        />
+      </FormItem>
+      <FormItem label="备注" v-bind="validateInfos.remark">
+        <Textarea
+          v-model:value="formData.remark"
+          :placeholder="$t('ui.formRules.required')"
+          :rows="4"
+        />
+      </FormItem>
+    </Form>
+  </BasicModal>
+</template>
