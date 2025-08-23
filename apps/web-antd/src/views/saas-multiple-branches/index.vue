@@ -25,7 +25,7 @@ dayjs.extend(weekOfYear);
 type ShiftType = 'FullTime' | 'PartTimeEvening' | 'PartTimeMorning';
 interface Employee {
   id: number;
-  name: string;
+  userName: string;
   type: '兼职' | '正职' | string;
   skills?: string[];
   daysOff?: string[];
@@ -279,13 +279,6 @@ watch([activeStoreId, currentWeekStart], fetchData);
 
     <!-- 右侧主内容区域 -->
     <div class="right-panel">
-      <!-- 面包屑导航 -->
-      <a-breadcrumb class="breadcrumb-section">
-        <a-breadcrumb-item>智慧门店</a-breadcrumb-item>
-        <a-breadcrumb-item>门店排班</a-breadcrumb-item>
-        <a-breadcrumb-item>周度排班</a-breadcrumb-item>
-      </a-breadcrumb>
-
       <!-- 筛选和操作栏 -->
       <a-card :bordered="false" class="filter-card">
         <a-form layout="inline">
