@@ -1,15 +1,17 @@
 /* eslint-disable */
 <script setup lang="ts">
-/* eslint-disable unicorn/no-nested-ternary */
 import type { TableColumnType } from 'ant-design-vue';
 
 import { computed, reactive, ref, watch } from 'vue';
 
 import { message } from 'ant-design-vue';
 
+// TODO 1. 引入后台智能排班接口
+import { generateSchedule } from '#/api/hrp/schedules';
 import { skillsList } from '#/api/hrp/skills';
 // 引入API
 import { listUserprofileWithSkills } from '#/api/hrp/userProfile';
+import { addUserSkill, removeUserSkill } from '#/api/hrp/userSkills';
 
 // ========== Props and Emits ==========
 const props = defineProps({
@@ -33,14 +35,24 @@ const isModalVisible = ref(false);
 const activeTab = ref('employeeManagement');
 
 // 员工管理
+interface Skill {
+  id: number;
+  name: string;
+}
 interface Employee {
   id: number;
   name: string;
   type: '兼职' | '正职' | string;
-  skills: string[];
+  skills: Skill[];
   daysOff: string[];
   isNew?: boolean;
+  // 用于新增技能的临时状态
+  newSkillId?: null | number;
 }
+const feedbackColumns: TableColumnType[] = [
+  { title: '反馈信息', dataIndex: 'message', key: 'message' },
+];
+
 const localEmployees = ref<Employee[]>([]); // 当前排班的员工
 const masterEmployees = ref<Employee[]>([]); // 从API获取的全店员工库
 
@@ -53,14 +65,16 @@ const localRequirements = reactive({
   '18:00-22:00': {},
 });
 
+const requirementMeta = {
+  '09:00-18:00': { label: '早班', color: '#e6f7ff' },
+  '09:00-14:00': { label: '早班', color: '#e6f7ff' },
+  '18:00-23:00': { label: '晚班', color: '#fffbe6' },
+  '18:00-22:00': { label: '烊班', color: '#fff1f0' },
+};
+
 // 排班反馈
 const isFeedbackVisible = ref(false);
 const unassignedFeedback = ref([]);
-const feedbackColumns: TableColumnType[] = [
-  { title: '日期', dataIndex: 'day', key: 'day' },
-  { title: '时间段', dataIndex: 'timeSlot', key: 'timeSlot' },
-  { title: '岗位缺口', dataIndex: 'gaps', key: 'gaps' },
-];
 
 // ========== API 调用 ==========
 const fetchModalData = async () => {
@@ -72,15 +86,15 @@ const fetchModalData = async () => {
       listUserprofileWithSkills({ storeId: props.storeId }),
       skillsList(),
     ]);
-    debugger;
 
     // 处理员工数据
     masterEmployees.value = employeeRes.map((e) => ({
       id: e.userId,
       name: e.userName,
       type: e.employeeType,
-      skills: e.skills ? e.skills.map((s) => s.name) : [],
+      skills: e.skills ? e.skills.map((s) => ({ id: s.id, name: s.name })) : [],
       daysOff: [],
+      newSkillId: null,
     }));
 
     // 处理技能数据
@@ -120,10 +134,17 @@ watch(
   (newValue) => {
     isModalVisible.value = newValue;
     if (newValue) {
-      // 弹窗打开时，获取最新数据
       fetchModalData();
-      // 并同步父组件传入的当前已在排班列表的员工
-      localEmployees.value = JSON.parse(JSON.stringify(props.employees || []));
+      localEmployees.value = JSON.parse(
+        JSON.stringify(props.employees || []),
+      ).map((emp) => ({
+        ...emp,
+        skills: emp.skills.map((skillName) => {
+          const skillObj = allSkills.value.find((s) => s.name === skillName);
+          return skillObj || { id: -1, name: skillName };
+        }),
+        newSkillId: null,
+      }));
     }
   },
 );
@@ -133,11 +154,11 @@ const weekDaysOptions = computed(
 );
 
 const employeeColumns: TableColumnType[] = [
-  { title: '姓名', dataIndex: 'name', key: 'name', width: 150 },
-  { title: '类型', dataIndex: 'type', key: 'type' },
+  { title: '姓名', dataIndex: 'name', key: 'name', width: 120 },
+  { title: '类型', dataIndex: 'type', key: 'type', width: 80 },
   { title: '技能', dataIndex: 'skills', key: 'skills' },
-  { title: '本周休息日', dataIndex: 'daysOff', key: 'daysOff', width: 220 },
-  { title: '操作', dataIndex: 'action', key: 'action' },
+  { title: '本周休息日', dataIndex: 'daysOff', key: 'daysOff', width: 200 },
+  { title: '操作', dataIndex: 'action', key: 'action', width: 100 },
 ];
 
 const availableMasterEmployees = computed(() => {
@@ -159,13 +180,19 @@ const addEmployeeRow = () => {
     skills: [],
     daysOff: [],
     isNew: true,
+    newSkillId: null,
   });
 };
 
 const handleEmployeeSelect = (employeeId: number, index: number) => {
   const selected = masterEmployees.value.find((e) => e.id === employeeId);
   if (selected) {
-    localEmployees.value[index] = { ...selected, daysOff: [], isNew: false };
+    localEmployees.value[index] = {
+      ...selected,
+      daysOff: [],
+      isNew: false,
+      newSkillId: null,
+    };
   }
 };
 
@@ -173,72 +200,100 @@ const removeEmployee = (id: number) => {
   localEmployees.value = localEmployees.value.filter((emp) => emp.id !== id);
 };
 
-const runSchedulingAlgorithm = () => {
-  // 算法逻辑保持不变，但现在使用的是从API获取的数据
-  const newSchedule = {};
-  const feedback = [];
+const handleRemoveSkill = async (employee: Employee, skillToRemove: Skill) => {
+  try {
+    await removeUserSkill({ userId: employee.id, skillId: skillToRemove.id });
+    employee.skills = employee.skills.filter(
+      (skill) => skill.id !== skillToRemove.id,
+    );
+    message.success(
+      `已删除员工 [${employee.name}] 的技能 [${skillToRemove.name}]`,
+    );
+  } catch (error) {
+    message.error('删除技能失败');
+    console.error('删除技能失败:', error);
+  }
+};
 
-  props.weekDays?.forEach((day) => {
-    const scheduledToday = new Set<number>();
-    Object.keys(localRequirements).forEach((timeSlot) => {
-      Object.keys(localRequirements[timeSlot]).forEach((skill) => {
-        let needed = localRequirements[timeSlot][skill];
-        if (needed <= 0) return;
+const handleAddSkill = async (employee: Employee) => {
+  if (!employee.newSkillId) {
+    message.warning('请选择要添加的技能');
+    return;
+  }
+  const skillToAdd = allSkills.value.find((s) => s.id === employee.newSkillId);
+  if (!skillToAdd) return;
 
-        const available = localEmployees.value.filter(
-          (emp) =>
-            !emp.daysOff.includes(day.label) &&
-            emp.skills.includes(skill) &&
-            !scheduledToday.has(emp.id),
-        );
-
-        for (const emp of available) {
-          if (needed <= 0) break;
-          if (!newSchedule[emp.id]) newSchedule[emp.id] = {};
-          const shiftType =
-            emp.type === '正职'
-              ? 'FullTime'
-              : timeSlot.startsWith('09')
-                ? 'PartTimeMorning'
-                : 'PartTimeEvening';
-          newSchedule[emp.id][day.key] = {
-            position: skill,
-            timeRange: timeSlot.replace('~', '-'),
-            duration: 5,
-            shiftType,
-            shiftLabel: `${emp.type}-${skill}`,
-          };
-          scheduledToday.add(emp.id);
-          needed--;
-        }
-
-        if (needed > 0) {
-          feedback.push({
-            day: day.label,
-            timeSlot,
-            gaps: `${skill}*${needed}`,
-          });
-        }
-      });
-    });
-  });
-
-  unassignedFeedback.value = feedback;
-  if (feedback.length > 0) {
-    // isFeedbackVisible.value = true;
+  if (employee.skills.some((s) => s.id === skillToAdd.id)) {
+    message.warning('该员工已拥有此技能');
+    return;
   }
 
-  emit('submit', newSchedule);
-  handleCancel();
+  try {
+    await addUserSkill({ userId: employee.id, skillId: skillToAdd.id });
+    employee.skills.push(skillToAdd);
+    employee.newSkillId = null; // 重置选择器
+    message.success(
+      `已为员工 [${employee.name}] 添加技能 [${skillToAdd.name}]`,
+    );
+  } catch (error) {
+    message.error('添加技能失败');
+    console.error('添加技能失败:', error);
+  }
+};
+
+const availableSkillsForEmployee = (employee: Employee) => {
+  const currentSkillIds = new Set(employee.skills.map((s) => s.id));
+  return allSkills.value.filter((s) => !currentSkillIds.has(s.id));
+};
+
+const runSchedulingAlgorithm = async () => {
+  if (!props.weekDays || props.weekDays.length === 0) {
+    message.error('周数据不正确，无法排班');
+    return;
+  }
+  loading.value = true;
+  try {
+    const payload = {
+      storeId: props.storeId,
+      startDate: props.weekDays[0].key,
+      endDate: props.weekDays[6].key,
+      employees: localEmployees.value.map((emp) => ({
+        id: emp.id,
+        daysOff: emp.daysOff,
+      })),
+      requirements: localRequirements,
+    };
+
+    const result = await generateSchedule(payload);
+
+    if (result.feedbackMessages && result.feedbackMessages.length > 0) {
+      // 如果有反馈信息，则展示反馈弹窗
+      unassignedFeedback.value = result.feedbackMessages.map((msg) => ({
+        message: msg,
+        key: msg,
+      }));
+      isFeedbackVisible.value = true;
+      message.warning('排班已完成，但存在一些问题，请查看反馈。');
+    } else {
+      // 如果没有反馈信息，则直接成功
+      message.success('智能排班成功！');
+      emit('submit'); // 通知父组件刷新
+      handleCancel(); // 关闭主弹窗
+    }
+  } catch (error) {
+    console.error('智能排班失败:', error);
+    message.error('智能排班失败，请检查配置或联系管理员');
+  } finally {
+    loading.value = false;
+  }
 };
 </script>
 
 <template>
-  <!-- 智能排班主弹窗 -->
   <a-modal
     v-model:visible="isModalVisible"
     title="智能排班"
-    width="800px"
+    width="850px"
     ok-text="开始排班"
     cancel-text="取消"
     :confirm-loading="loading"
@@ -247,7 +302,6 @@ const runSchedulingAlgorithm = () => {
   >
     <a-spin :spinning="loading">
       <a-tabs v-model:active-key="activeTab">
-        <!-- 员工管理 Tab -->
         <a-tab-pane key="employeeManagement" tab="员工管理">
           <a-table
             :columns="employeeColumns"
@@ -279,9 +333,50 @@ const runSchedulingAlgorithm = () => {
                 <span v-else>{{ record.name }}</span>
               </template>
               <template v-if="column.dataIndex === 'skills'">
-                <a-tag v-for="skill in record.skills" :key="skill" color="blue">
-                  {{ skill }}
-                </a-tag>
+                <div
+                  style="
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 4px;
+                    align-items: center;
+                  "
+                >
+                  <a-tag
+                    v-for="skill in record.skills"
+                    :key="skill.id"
+                    color="blue"
+                    closable
+                    @close.prevent="handleRemoveSkill(record, skill)"
+                  >
+                    {{ skill.name }}
+                  </a-tag>
+                  <a-select
+                    v-if="
+                      !record.isNew &&
+                      availableSkillsForEmployee(record).length > 0
+                    "
+                    v-model:value="record.newSkillId"
+                    size="small"
+                    style="width: 100px"
+                    placeholder="新增技能"
+                  >
+                    <a-select-option
+                      v-for="skill in availableSkillsForEmployee(record)"
+                      :key="skill.id"
+                      :value="skill.id"
+                    >
+                      {{ skill.name }}
+                    </a-select-option>
+                  </a-select>
+                  <a-button
+                    v-if="!record.isNew && record.newSkillId"
+                    type="primary"
+                    size="small"
+                    @click="handleAddSkill(record)"
+                  >
+                    添加
+                  </a-button>
+                </div>
               </template>
               <template v-if="column.dataIndex === 'daysOff'">
                 <a-select
@@ -310,7 +405,6 @@ const runSchedulingAlgorithm = () => {
           </a-button>
         </a-tab-pane>
 
-        <!-- 岗位需求配置 Tab -->
         <a-tab-pane key="requirementsConfig" tab="岗位需求配置">
           <a-alert
             message="请在下方表格内配置每日各时段所需人数"
@@ -320,9 +414,27 @@ const runSchedulingAlgorithm = () => {
           <a-card
             v-for="(req, timeSlot) in localRequirements"
             :key="timeSlot"
-            :title="`时段 ${timeSlot}`"
             class="mt-4"
+            :body-style="{ paddingTop: '16px' }"
           >
+            <template #title>
+              <div
+                :style="{
+                  backgroundColor: requirementMeta[timeSlot]?.color,
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                }"
+              >
+                <a-tag
+                  :color="
+                    requirementMeta[timeSlot]?.color ? undefined : 'default'
+                  "
+                >
+                  {{ requirementMeta[timeSlot]?.label || '时段' }}
+                </a-tag>
+                <span>{{ timeSlot }}</span>
+              </div>
+            </template>
             <a-row :gutter="16">
               <a-col v-for="skill in allSkills" :key="skill.id" :span="4">
                 <a-form-item :label="skill.name">
@@ -340,14 +452,13 @@ const runSchedulingAlgorithm = () => {
     </a-spin>
   </a-modal>
 
-  <!-- 排班结果反馈弹窗 -->
   <a-modal
     v-model:visible="isFeedbackVisible"
     title="智能排班结果反馈"
     @ok="isFeedbackVisible = false"
   >
     <a-alert
-      message="智能排班已完成，但部分时间段存在岗位缺口，请及时进行调整。"
+      message="请检查以下问题并调整您的配置后重试。"
       type="warning"
       show-icon
     />

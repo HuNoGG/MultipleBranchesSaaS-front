@@ -62,8 +62,8 @@ export function schedulesRemove(id: ID | IDS) {
 }
 
 // 查询排班计划列表
-export function getSchedulePlan(params) {
-  return requestClient.get('/hrp/schedules/plan', { params });
+export function getWeeklySchedule(params) {
+  return requestClient.get('/hrp/schedules/week', { params });
 }
 
 // 查询排班历史列表
@@ -74,4 +74,9 @@ export function getScheduleHistory(params) {
 // 智能生成排班计划
 export function generateSchedule(data) {
   return requestClient.postWithMsg<void>('/hrp/schedules/generate', data);
+}
+
+// 发布排班计划
+export function publishSchedule(params) {
+  return requestClient.get<void>('/hrp/schedules/publish', { params });
 }

@@ -39,8 +39,8 @@ export function userSkillsInfo(userId: ID) {
  * @param data
  * @returns void
  */
-export function userSkillsAdd(data: UserSkillsForm) {
-  return requestClient.postWithMsg<void>('/hrp/userSkills', data);
+export function addUserSkill(data: UserSkillsForm) {
+  return requestClient.post<void>('/hrp/userSkills', data);
 }
 
 /**
@@ -57,6 +57,8 @@ export function userSkillsUpdate(data: UserSkillsForm) {
  * @param userId id
  * @returns void
  */
-export function userSkillsRemove(userId: ID | IDS) {
-  return requestClient.deleteWithMsg<void>(`/hrp/userSkills/${userId}`);
+export function removeUserSkill(params: any) {
+  return requestClient.delete<void>(`/hrp/userSkills`, {
+    params,
+  });
 }
