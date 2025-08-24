@@ -20,6 +20,7 @@ import { getWeeklySchedule, publishSchedule } from '#/api/hrp/schedules';
 
 import { storeEventsAdd } from '../hrp/storeEvents';
 import { storesList } from '../hrp/stores';
+import AddSupplementModal from './AddSupplementModal.vue';
 import ScheduleModal from './ScheduleModal.vue';
 import ShiftAdjustModal from './ShiftAdjustModal.vue';
 
@@ -62,6 +63,11 @@ const stores = reactive<Store[]>([]);
 const currentWeekStart = ref(dayjs().startOf('week'));
 const scheduleData = ref<ScheduleRow[]>([]);
 const employees = ref<Employee[]>([]);
+
+// ========== 弹窗逻辑 ==========
+const isScheduleModalVisible = ref(false);
+const shiftAdjustModalState = reactive({ visible: false, data: null });
+const isAddPersonModalVisible = ref(false);
 const isCurrentWeekPublished = ref(false);
 
 // ========== 计算属性 ==========
@@ -152,6 +158,8 @@ const formatApiData = (apiData) => {
         ? {
             id: mainSchedule.id,
             position: mainSchedule.skillName,
+            skillId: mainSchedule.skillId,
+            userId: mainSchedule.userId,
             timeRange: `${mainSchedule.shiftStartTime.slice(0, 5)}-${mainSchedule.shiftEndTime.slice(0, 5)}`,
             shiftLabel: mainSchedule.shiftName,
             status: mainSchedule.attendanceStatus || '正常',
@@ -175,20 +183,16 @@ const changeWeek = (direction: -1 | 1) => {
 onMounted(fetchData);
 watch([activeStoreId, currentWeekStart], fetchData);
 
-// ========== 弹窗逻辑 (合并) ==========
-const isScheduleModalVisible = ref(false);
-const shiftAdjustModalState = reactive({ visible: false, data: null });
-
 const handleCellClick = (record: ScheduleRow, dayKey: string) => {
   const cellData = record[dayKey];
   if (!cellData || isPastWeek.value) return;
-  debugger;
   shiftAdjustModalState.data = {
     employee: record.employee,
     shift: cellData,
     date: weekDays.value.find((d) => d.key === dayKey)?.label || dayKey,
     dayKey,
     isPublished: isCurrentWeekPublished.value,
+    storeId: activeStoreId.value,
   };
   shiftAdjustModalState.visible = true;
 };
@@ -245,8 +249,6 @@ const handleDayHoliday = async ({ key: holidayType }, dayKey: string) => {
 
 // ... 其他按钮逻辑 (智能排班, 重置, 增补, 导出)
 const handleSmartSchedule = () => (isScheduleModalVisible.value = true);
-const handleExport = () => message.info('导出功能开发中...');
-const handleAddPerson = () => (isAddPersonModalVisible.value = true);
 const handleResetSchedule = () => {
   Modal.confirm({
     title: '确认重置排班表吗？',
@@ -260,14 +262,6 @@ const handleResetSchedule = () => {
       message.success('排班表已清空');
     },
   });
-};
-const handleSearch = () => {
-  // 此处应调用搜索接口
-  fetchData();
-};
-const handleReset = () => {
-  // 此处应调用重置接口
-  fetchData();
 };
 // ========== 单元格样式 ==========
 const getAttendanceColor = (shift: ShiftAssignment) => {
@@ -299,6 +293,7 @@ const getCellStyle = (shift: ShiftAssignment, employeeType: string) => {
 
   // 未来样式
   let shiftType;
+  debugger;
   if (employeeType === '正职') {
     shiftType = 'FullTime';
   } else if (employeeType === '兼职') {
@@ -308,6 +303,8 @@ const getCellStyle = (shift: ShiftAssignment, employeeType: string) => {
         : shift.shiftCode === '晚'
           ? 'PartTimeEvening'
           : 'PartTime';
+  } else {
+    shiftType = 'supplement';
   }
   const futureStyleMap = {
     FullTime: { background: 'rgba(68, 99, 255, 1)' },
@@ -324,6 +321,10 @@ const getCellStyle = (shift: ShiftAssignment, employeeType: string) => {
         'linear-gradient(to right, rgba(221, 172, 51, 0.2), rgba(221, 172, 51, 0.05))',
     },
     PartTime: {
+      background:
+        'linear-gradient(to right, rgba(221, 172, 51, 0.2), rgba(221, 172, 51, 0.05))',
+    },
+    supplement: {
       background:
         'linear-gradient(to right, rgba(221, 172, 51, 0.2), rgba(221, 172, 51, 0.05))',
     },
@@ -430,7 +431,9 @@ const getStatusTextColor = (shift: ShiftAssignment) => {
               </template>
               <template v-else>
                 <template v-if="isCurrentWeekPublished">
-                  <a-button>增补人员</a-button>
+                  <a-button @click="isAddPersonModalVisible = true">
+                    增补人员
+                  </a-button>
                   <a-button type="primary">导出</a-button>
                 </template>
                 <template v-else>
@@ -559,7 +562,6 @@ const getStatusTextColor = (shift: ShiftAssignment) => {
                     </span>
                   </div>
                 </a-popover>
-
                 <div
                   v-else
                   class="cell-content"
@@ -607,9 +609,16 @@ const getStatusTextColor = (shift: ShiftAssignment) => {
     />
 
     <ShiftAdjustModal
-      v-if="shiftAdjustModalState.visible"
       v-model:visible="shiftAdjustModalState.visible"
       :modal-data="shiftAdjustModalState.data"
+      @submit="fetchData"
+    />
+
+    <AddSupplementModal
+      v-model:visible="isAddPersonModalVisible"
+      :store-id="activeStoreId"
+      :employees="employees"
+      :week-days="weekDays"
       @submit="fetchData"
     />
   </div>

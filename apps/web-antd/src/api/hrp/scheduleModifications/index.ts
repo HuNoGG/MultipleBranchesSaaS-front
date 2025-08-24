@@ -53,6 +53,20 @@ export function scheduleModificationsAdd(data: ScheduleModificationsForm) {
 }
 
 /**
+ * 新增排班修改记录批量
+ * @param data
+ * @returns void
+ */
+export function scheduleModificationsAddBatch(
+  data: ScheduleModificationsForm[],
+) {
+  return requestClient.postWithMsg<void>(
+    '/hrp/scheduleModifications/batch',
+    data,
+  );
+}
+
+/**
  * 更新排班修改记录
  * @param data
  * @returns void

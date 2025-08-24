@@ -2,9 +2,10 @@
 import { computed, ref, watch } from 'vue';
 
 import { message } from 'ant-design-vue';
+
+import { scheduleModificationsAdd } from '#/api/hrp/scheduleModifications';
 // 引入相关API
-// import { getAvailableSubstitutes } from '#/api/hrp/userProfile';
-// import { createModification } from '#/api/hrp/schedules';
+import { getAvailableSubstitutes } from '#/api/hrp/userProfile';
 
 // ========== Props and Emits ==========
 const props = defineProps({
@@ -36,17 +37,16 @@ const fetchSubstitutes = async () => {
   if (!props.modalData) return;
   loading.value = true;
   try {
-    // const params = {
-    //     storeId: props.modalData.storeId,
-    //     date: props.modalData.dayKey,
-    //     skillId: props.modalData.shift.skillId,
-    // };
-    // availableSubstitutes.value = await getAvailableSubstitutes(params);
+    debugger;
+
+    const params = {
+      storeId: props.modalData.storeId,
+      scheduleDate: props.modalData.dayKey,
+      skillId: props.modalData.shift.skillId,
+      originalUserId: props.modalData.shift.userId,
+    };
+    availableSubstitutes.value = await getAvailableSubstitutes(params);
     // 模拟数据
-    availableSubstitutes.value = [
-      { id: 108, name: '员工108' },
-      { id: 109, name: '员工109' },
-    ];
   } catch {
     message.error('获取可代班员工列表失败');
   } finally {
@@ -58,20 +58,20 @@ const handleOk = async () => {
   loading.value = true;
   try {
     const { shift, employee, dayKey } = props.modalData;
-    // let params = {};
-    // if (activeTab.value === 'substitute') {
-    //     if (!substituteEmployeeId.value) {
-    //         message.warning('请选择一位代班员工');
-    //         return;
-    //     }
-    //     params = {
-    //         scheduleId: shift.id,
-    //         originalUserId: employee.id,
-    //         newUserId: substituteEmployeeId.value,
-    //         changeType: '替班', // '替班'
-    //     };
-    // }
-    // await createModification(params);
+    let params = {};
+    if (activeTab.value === 'substitute') {
+      if (!substituteEmployeeId.value) {
+        message.warning('请选择一位代班员工');
+        return;
+      }
+      params = {
+        scheduleId: shift.id,
+        originalUserId: employee.id,
+        newUserId: substituteEmployeeId.value,
+        changeType: '替班', // '替班'
+      };
+    }
+    await scheduleModificationsAdd(params);
     message.success('班次调整成功');
     emit('submit');
     handleCancel();
