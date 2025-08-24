@@ -13,7 +13,6 @@ import { VbenButton, VbenCheckbox } from '@vben-core/shadcn-ui';
 import { cloneDeep } from '@vben-core/shared/utils';
 
 import Title from './auth-title.vue';
-import ThirdPartyLogin from './third-party-login.vue';
 
 interface Props extends AuthenticationProps {
   formSchema?: VbenFormSchema[];
@@ -30,15 +29,15 @@ const props = withDefaults(defineProps<Props>(), {
   loading: false,
   qrCodeLoginPath: '/auth/qrcode-login',
   registerPath: '/auth/register',
-  showCodeLogin: true,
-  showForgetPassword: true,
-  showQrcodeLogin: true,
-  showRegister: true,
+  showCodeLogin: false,
+  showForgetPassword: false,
+  showQrcodeLogin: false,
+  showRegister: false,
   showRememberMe: true,
-  showThirdPartyLogin: true,
+  showThirdPartyLogin: false,
   submitButtonText: '',
   subTitle: '',
-  title: '',
+  title: '智能排班OA管理系统',
 });
 
 const emit = defineEmits<{
@@ -168,9 +167,6 @@ defineExpose({
     </div>
 
     <!-- 第三方登录 -->
-    <slot v-if="showThirdPartyLogin" name="third-party-login">
-      <ThirdPartyLogin />
-    </slot>
 
     <slot name="to-register">
       <div v-if="showRegister" class="mt-3 text-center text-sm">

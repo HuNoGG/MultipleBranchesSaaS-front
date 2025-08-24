@@ -1,17 +1,10 @@
 <script lang="ts" setup>
-import { computed, h, onMounted, watch } from 'vue';
+import { computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { AuthenticationLoginExpiredModal } from '@vben/common-ui';
-import { VBEN_DOC_URL, VBEN_GITHUB_URL } from '@vben/constants';
 import { useWatermark } from '@vben/hooks';
-import {
-  BookOpenText,
-  CircleHelp,
-  GiteeIcon,
-  GitHubOutlined,
-  UserOutlined,
-} from '@vben/icons';
+import { UserOutlined } from '@vben/icons';
 import {
   BasicLayout,
   LockScreen,
@@ -20,7 +13,6 @@ import {
 } from '@vben/layouts';
 import { preferences } from '@vben/preferences';
 import { useAccessStore, useUserStore } from '@vben/stores';
-import { openWindow } from '@vben/utils';
 
 import { message } from 'ant-design-vue';
 
@@ -42,46 +34,10 @@ const menus = computed(() => {
   const defaultMenus = [
     {
       handler: () => {
-        openWindow(VBEN_DOC_URL, {
-          target: '_blank',
-        });
-      },
-      icon: BookOpenText,
-      text: $t('ui.widgets.document'),
-    },
-    {
-      handler: () => {
         router.push('/profile');
       },
       icon: UserOutlined,
       text: $t('ui.widgets.profile'),
-    },
-    {
-      handler: () => {
-        openWindow('https://gitee.com/dapppp/ruoyi-plus-vben5', {
-          target: '_blank',
-        });
-      },
-      icon: () => h(GiteeIcon, { class: 'text-red-800' }),
-      text: 'Gitee项目地址',
-    },
-    {
-      handler: () => {
-        openWindow(VBEN_GITHUB_URL, {
-          target: '_blank',
-        });
-      },
-      icon: GitHubOutlined,
-      text: 'Vben官方地址',
-    },
-    {
-      handler: () => {
-        openWindow(`${VBEN_GITHUB_URL}/issues`, {
-          target: '_blank',
-        });
-      },
-      icon: CircleHelp,
-      text: $t('ui.widgets.qa'),
     },
   ];
   /**
