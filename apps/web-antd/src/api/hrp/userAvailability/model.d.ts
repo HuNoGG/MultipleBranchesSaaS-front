@@ -1,4 +1,4 @@
-import type { BaseEntity, PageQuery } from '#/api/common';
+import type { BaseEntity, DayOfWeekNumber, PageQuery } from '#/api/common';
 
 export interface UserAvailabilityVO {
   /**
@@ -79,4 +79,12 @@ export interface UserAvailabilityQuery extends PageQuery {
    * 日期范围参数
    */
   params?: any;
+}
+
+// 定义可上班时间对象的结构
+export interface Availability {
+  id: number; // 假设每个对象有唯一ID
+  dayOfWeek: DayOfWeekNumber; // 使用我们定义的精确类型
+  startTime: string;
+  endTime: string;
 }

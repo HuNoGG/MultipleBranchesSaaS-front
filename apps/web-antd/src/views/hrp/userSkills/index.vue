@@ -13,7 +13,7 @@ import { useVbenVxeGrid, vxeCheckboxChecked } from '#/adapter/vxe-table';
 import {
   userSkillsExport,
   userSkillsList,
-  userSkillsRemove,
+  removeUserSkill,
 } from '#/api/hrp/userSkills';
 import { commonDownloadExcel } from '#/utils/file/download';
 
@@ -105,7 +105,7 @@ function handleMultiDelete() {
     okType: 'danger',
     content: `确认删除选中的${ids.length}条记录吗？`,
     onOk: async () => {
-      await userSkillsRemove(ids);
+      await removeUserSkill(ids);
       await tableApi.query();
     },
   });

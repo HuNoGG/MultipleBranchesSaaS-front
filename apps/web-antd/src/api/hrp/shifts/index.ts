@@ -17,6 +17,20 @@ export function shiftsList(params?: ShiftsQuery) {
 }
 
 /**
+ * 查询班别和休息设定列表
+ * @param params
+ * @returns 班别设定列表
+ */
+export function shiftsAndRestTime(params?: ShiftsQuery) {
+  return requestClient.get<PageResult<ShiftsVO>>(
+    '/hrp/shifts/shiftsAndRestTime',
+    {
+      params,
+    },
+  );
+}
+
+/**
  * 导出班别设定列表
  * @param params
  * @returns 班别设定列表

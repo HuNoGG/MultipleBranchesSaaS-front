@@ -50,14 +50,14 @@ export const localMenuList: RouteRecordStringComponent[] = [
           title: 'page.dashboard.analytics',
         },
       },
-      {
-        name: 'Workspace',
-        path: '/workspace',
-        component: '/dashboard/workspace/index',
-        meta: {
-          title: 'page.dashboard.workspace',
-        },
-      },
+      // {
+      //   name: 'Workspace',
+      //   path: '/workspace',
+      //   component: '/dashboard/workspace/index',
+      //   meta: {
+      //     title: 'page.dashboard.workspace',
+      //   },
+      // },
 
       {
         name: 'AutomaticScheduling',
@@ -68,10 +68,10 @@ export const localMenuList: RouteRecordStringComponent[] = [
         },
       },
       {
-        path: '/schedule/history',
-        name: 'ScheduleHistory',
-        component: '/saas-multiple-branches/ScheduleHistory.vue',
-        meta: { title: '排班历史' },
+        path: '/hrp/configuration',
+        name: 'ConfigurationWorkbench',
+        component: '/hrp/configurationWorkbench/ConfigurationWorkbench.vue',
+        meta: { title: '排班配置' },
       },
     ],
   },

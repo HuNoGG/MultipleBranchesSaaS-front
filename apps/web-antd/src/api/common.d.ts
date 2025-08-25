@@ -19,6 +19,18 @@ export interface PageResult<T = any> {
   total: number;
 }
 
+export type DayOfWeekNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
+export const weekDayMap: Record<DayOfWeekNumber, string> = {
+  1: '周一',
+  2: '周二',
+  3: '周三',
+  4: '周四',
+  5: '周五',
+  6: '周六',
+  7: '周日',
+};
+
 /**
  * 分页查询参数
  *

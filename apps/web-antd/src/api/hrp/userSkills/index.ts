@@ -1,6 +1,6 @@
 import type { UserSkillsForm, UserSkillsQuery, UserSkillsVO } from './model';
 
-import type { ID, IDS, PageResult } from '#/api/common';
+import type { ID, PageResult } from '#/api/common';
 
 import { commonExport } from '#/api/helper';
 import { requestClient } from '#/api/request';

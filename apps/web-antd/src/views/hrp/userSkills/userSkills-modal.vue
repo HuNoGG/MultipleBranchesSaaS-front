@@ -17,7 +17,7 @@ import { Form } from 'ant-design-vue';
 import { pick } from 'lodash-es';
 
 import {
-  userSkillsAdd,
+  addUserSkill,
   userSkillsInfo,
   userSkillsUpdate,
 } from '#/api/hrp/userSkills';
@@ -103,7 +103,7 @@ async function handleConfirm() {
     await validate();
     // 可能会做数据处理 使用cloneDeep深拷贝
     const data = cloneDeep(formData.value);
-    await (isUpdate.value ? userSkillsUpdate(data) : userSkillsAdd(data));
+    await (isUpdate.value ? userSkillsUpdate(data) : addUserSkill(data));
     resetInitialized();
     emit('reload');
     modalApi.close();
