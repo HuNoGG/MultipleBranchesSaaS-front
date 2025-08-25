@@ -51,6 +51,32 @@ export function scheduleRequirementsAdd(data: ScheduleRequirementsForm) {
 }
 
 /**
+ * 配置页新增Or更新人力需求
+ * @param data
+ * @returns void
+ */
+export function saveDailyRequirements(data: ScheduleRequirementsForm) {
+  return requestClient.postWithMsg<void>(
+    '/hrp/scheduleRequirements/save',
+    data,
+  );
+}
+
+/**
+ * 查询每日人力需求列表,包含三种类型的数据,分别组装
+ * @param params
+ * @returns 每日人力需求列表
+ */
+export function scheduleRequirementsAllTypeList(
+  params?: ScheduleRequirementsQuery,
+) {
+  return requestClient.get<PageResult<ScheduleRequirementsVO>>(
+    '/hrp/scheduleRequirements/all-by-store',
+    { params },
+  );
+}
+
+/**
  * 更新每日人力需求
  * @param data
  * @returns void

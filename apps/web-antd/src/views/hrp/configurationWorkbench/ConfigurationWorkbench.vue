@@ -1,4 +1,6 @@
 <script setup lang="tsx">
+import type { TableColumnType } from 'ant-design-vue';
+
 import type { StoreEventsVO } from '../storeEvents/model';
 
 import type { SkillsVO } from '#/api/hrp/skills/model';
@@ -22,11 +24,16 @@ import {
 import { message, Modal } from 'ant-design-vue';
 
 import { weekDayMap } from '#/api/common.d.ts';
-import { shiftsAndRestTime } from '#/api/hrp/shifts';
+import {
+  saveDailyRequirements,
+  scheduleRequirementsAllTypeList,
+} from '#/api/hrp/scheduleRequirements';
+import { saveBasicSettings, shiftsAndRestTime } from '#/api/hrp/shifts';
 import { skillsList } from '#/api/hrp/skills';
 import { storesList } from '#/api/hrp/stores';
 import { listUserprofileWithSkills } from '#/api/hrp/userProfile';
 
+import { shiftsRemove } from '../../../api/hrp/shifts';
 import EmployeeEditModal from './EmployeeEditModal.vue'; // 引入新的员工编辑弹窗
 
 // =================================================================================
@@ -137,7 +144,7 @@ const handleCopySettings = () => {
 };
 
 // --- 人力需求面板状态 ---
-const requirements = reactive<{
+const requirements = ref<{
   holiday: any[];
   special: any[];
   weekday: any[];
@@ -158,13 +165,13 @@ const getRequirementCount = (
   type: 'holiday' | 'special' | 'weekday',
   shiftId: number,
   skillId: number,
-  source = requirements,
+  source = requirements.value,
 ) => {
   const reqSource = type === 'special' ? source.requirements : source[type];
   const found = reqSource.find(
     (r) => r.shiftId === shiftId && r.skillId === skillId,
   );
-  return found ? found.count : 0;
+  return found ? found.requiredCount : 0;
 };
 
 const setRequirementCount = (
@@ -172,27 +179,63 @@ const setRequirementCount = (
   shiftId: number,
   skillId: number,
   count: number,
-  source = requirements,
+  source = requirements.value,
 ) => {
   const reqSource = type === 'special' ? source.requirements : source[type];
   const found = reqSource.find(
     (r) => r.shiftId === shiftId && r.skillId === skillId,
   );
+
   if (found) {
-    found.count = count;
+    // 更新逻辑
+    found.requiredCount = Math.max(count, 0);
   } else {
-    reqSource.push({ shiftId, skillId, count });
+    // 新增逻辑
+    if (count > 0) {
+      reqSource.push({ shiftId, skillId, requiredCount: count });
+    }
   }
+  console.log(reqSource);
 };
 
-const handleSaveRequirements = (type: 'holiday' | 'weekday') => {
-  // MOCK: 此处应调用批量保存人力需求的API
-  const typeName = type === 'weekday' ? '平日' : '假日';
-  console.log(
-    `Saving ${typeName} requirements for store ${activeStoreId.value}:`,
-    requirements[type],
-  );
-  message.success(`${typeName}需求保存成功`);
+const handleSaveRequirements = async (type: 'holiday' | 'weekday') => {
+  if (!activeStoreId.value) {
+    message.error('未选择任何店铺');
+    return;
+  }
+  // 1. 转换数据格式以匹配后台 DTO
+  // 从嵌套的 requirements 对象中提取出扁平的列表
+  const requirementsList = requirements.value[type]
+    .filter((req) => req.requiredCount > 0) // 只提交需求数量大于0的项
+    .map((req) => ({
+      shiftId: req.shiftId,
+      skillId: req.skillId,
+      count: req.requiredCount,
+    }));
+
+  // 2. 构建与 DailyRequirementsDto 完全匹配的 payload
+  const payload = {
+    storeId: activeStoreId.value,
+    dayType: type, // 'weekday' or 'holiday'
+    requirements: requirementsList,
+  };
+
+  // 3. 调用后台API进行保存
+  loading.value = true;
+  try {
+    await saveDailyRequirements(payload);
+    console.log(
+      `Saving ${type} requirements with payload:`,
+      JSON.stringify(payload, null, 2),
+    );
+    message.success(`${type === 'weekday' ? '平日' : '假日'}需求保存成功`);
+
+    await loadWorkbenchData(activeStoreId.value);
+  } catch {
+    message.error('保存失败，请重试');
+  } finally {
+    loading.value = false;
+  }
 };
 
 const handleAddSpecialDay = () => {
@@ -215,10 +258,22 @@ const handleSpecialDayOk = () => {
 
 // --- 表格列定义 ---
 const requirementColumns = computed<TableColumnType[]>(() => [
-  { title: '班次', dataIndex: 'name', width: 150, fixed: 'left' },
+  {
+    title: '班次',
+    dataIndex: 'name',
+    key: 'shiftInfo',
+    width: 200, // 适当加宽以容纳时间
+    fixed: 'left',
+    // 使用 customRender 来自定义显示，确保其为只读文本
+    customRender: ({ record }) => {
+      // record 在这里就是 shifts 数组中的一个班次对象
+      return `${record.name} (${record.startTime}-${record.endTime})`;
+    },
+  },
+  // 动态生成技能列 (此部分逻辑不变)
   ...allSkills.value.map((skill) => ({
     title: skill.name,
-    dataIndex: 'requirements',
+    dataIndex: 'requirements', // 指向一个不存在的字段，因为我们将使用 bodyCell 模板
     key: skill.id,
     width: 100,
     align: 'center',
@@ -302,7 +357,6 @@ const loadBasicSettingsData = async (storeId) => {
         })),
       }));
     });
-    console.log('shiftsAndRestTime>%o', shifts.value);
   } catch {
     message.error('加载配置数据失败');
   } finally {
@@ -333,12 +387,54 @@ const handleEditShift = (shift) => {
   isShiftModalVisible.value = true;
 };
 
-const handleShiftOk = () => {
-  // MOCK: 此处应调用新增或编辑班次的API
-  console.log('Saving shift:', shiftForm);
-  message.success('班次保存成功');
-  isShiftModalVisible.value = false;
-  loadBasicSettingsData(activeStoreId.value); // 重新加载数据
+const handleShiftOk = async () => {
+  // 1. 校验表单
+  if (!shiftForm.name || !shiftForm.code || !shiftForm.timeRange) {
+    message.warning('请填写完整的班次信息');
+    return;
+  }
+
+  // 2. 构建符合后台 BasicSettingsDto.ShiftDto 格式的 payload
+  const payload = {
+    id: shiftForm.id,
+    name: shiftForm.name,
+    code: shiftForm.code,
+    startTime: shiftForm.timeRange[0],
+    endTime: shiftForm.timeRange[1],
+    isCrossDay: !!shiftForm.isCrossDay, // 转换为 boolean
+    color: shiftForm.colorCode, // 属性名转换
+    breakTimes: shiftForm.breakTimes
+      .filter((bt) => bt.range && bt.range.length === 2) // 过滤掉未设置时间的休息
+      .map((bt) => ({
+        id: bt.id > 1_000_000 ? null : bt.id, // 新增的休息时间ID为null
+        range: bt.range,
+      })),
+  };
+
+  // 3. 构建完整的 BasicSettingsDto
+  const finalPayload = {
+    storeId: activeStoreId.value,
+    crossDayRule: basicSettings.crossDayRule,
+    shifts: [payload], // 即使是单个，后台也期望一个列表
+  };
+
+  loading.value = true;
+  try {
+    await saveBasicSettings(finalPayload).then(() => {
+      message.success('班次保存成功');
+    });
+    console.log(
+      'Saving settings with payload:',
+      JSON.stringify(finalPayload, null, 2),
+    );
+    message.success('班次保存成功');
+    isShiftModalVisible.value = false;
+    await loadBasicSettingsData(activeStoreId.value);
+  } catch {
+    message.error('保存失败');
+  } finally {
+    loading.value = false;
+  }
 };
 
 const handleDeleteShift = (id: number) => {
@@ -346,10 +442,11 @@ const handleDeleteShift = (id: number) => {
     title: '确认删除此班次吗？',
     content: '删除后，人力需求模型中对应的行也会被移除。',
     onOk: () => {
-      // MOCK: 此处应调用删除班次的API
-      console.log('Deleting shift:', id);
-      message.success('班次删除成功');
-      loadBasicSettingsData(activeStoreId.value); // 重新加载数据
+      shiftsRemove(id).then(() => {
+        console.log('Deleting shift:', id);
+        message.success('班次删除成功');
+        loadBasicSettingsData(activeStoreId.value); // 重新加载数据
+      });
     },
   });
 };
@@ -383,6 +480,16 @@ const loadWorkbenchData = async (storeId) => {
   }
   loading.value = true;
   try {
+    const data = await skillsList({ storeId: activeStoreId.value });
+    allSkills.value = data.rows;
+    // 查询需求集合
+    await scheduleRequirementsAllTypeList({ storeId }).then((res) => {
+      requirements.value = res;
+    });
+    loadPermissionsData(storeId);
+    loadRulesData(storeId);
+    loadBasicSettingsData(storeId);
+
     // 查询当前店铺的员工与技能信息
     await listUserprofileWithSkills({ storeId }).then((res) => {
       employees.value = res.map((item) => ({
@@ -394,10 +501,6 @@ const loadWorkbenchData = async (storeId) => {
         })),
       }));
     });
-    console.log('employess->%o', employees.value);
-    // 模拟需求
-    requirements.weekday = [{ shiftId: 1, '1': 2, '2': 3 }]; // skillId: count
-    requirements.holiday = [{ shiftId: 1, '1': 3, '2': 5 }];
   } catch {
     message.error('加载配置数据失败');
   } finally {
@@ -415,27 +518,17 @@ onMounted(async () => {
   } else if (userRole.value === 'store') {
     activeStoreId.value = loggedInStoreId;
   }
-
-  if (activeStoreId.value) {
-    const data = await skillsList({ storeId: activeStoreId.value });
-    allSkills.value = data.rows;
-    await loadWorkbenchData(activeStoreId.value);
-    await loadPermissionsData(activeStoreId.value);
-    await loadRulesData(activeStoreId.value);
-    await loadBasicSettingsData(activeStoreId.value);
-  } else {
-    loading.value = false;
-  }
 });
 
-watch(activeStoreId, (newId) => {
-  if (newId) {
-    loadWorkbenchData(newId);
-    loadPermissionsData(newId);
-    loadRulesData(newId);
-    loadBasicSettingsData(newId);
-  }
-});
+watch(
+  activeStoreId,
+  (newId) => {
+    if (newId) {
+      loadWorkbenchData(newId);
+    }
+  },
+  { immediate: true },
+);
 
 // --- 员工属性交互 ---
 const handleEditEmployee = (employee) => {
@@ -796,7 +889,7 @@ const formatSupportStores = (storeIds) => {
                 :scroll="{ x: 800 }"
               >
                 <template #bodyCell="{ column, record: shift }">
-                  <template v-if="column.key !== 'name'">
+                  <template v-if="typeof column.key === 'number'">
                     <a-input-number
                       :value="
                         getRequirementCount('weekday', shift.id, column.key)
@@ -824,6 +917,7 @@ const formatSupportStores = (storeIds) => {
                 保存平日需求
               </a-button>
             </a-tab-pane>
+
             <a-tab-pane key="holiday" tab="假日需求">
               <a-table
                 :columns="requirementColumns"
@@ -835,7 +929,7 @@ const formatSupportStores = (storeIds) => {
                 :scroll="{ x: 800 }"
               >
                 <template #bodyCell="{ column, record: shift }">
-                  <template v-if="column.key !== 'name'">
+                  <template v-if="typeof column.key === 'number'">
                     <a-input-number
                       :value="
                         getRequirementCount('holiday', shift.id, column.key)

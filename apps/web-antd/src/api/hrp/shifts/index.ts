@@ -58,6 +58,15 @@ export function shiftsAdd(data: ShiftsForm) {
 }
 
 /**
+ * 新增或更新基础设定
+ * @param data
+ * @returns void
+ */
+export function saveBasicSettings(data: ShiftsForm) {
+  return requestClient.postWithMsg<void>('/hrp/shifts/saveBasicSettings', data);
+}
+
+/**
  * 更新班别设定
  * @param data
  * @returns void
