@@ -33,8 +33,8 @@ const defaultValues: Partial<StoresForm> = {
   id: undefined,
   name: undefined,
   address: undefined,
-  crossDayRule: undefined,
-  status: undefined,
+  crossDayRule: 'by_shift_start',
+  status: 0,
   remark: undefined,
 };
 
@@ -50,16 +50,17 @@ type AntdFormRules<T> = Partial<Record<keyof T, RuleObject[]>> & {
  * 表单校验规则
  */
 const formRules = ref<AntdFormRules<StoresForm>>({
+  name: [{ required: true, message: '分店名称不能为空' }],
   address: [{ required: true, message: '分店地址不能为空' }],
   crossDayRule: [
     {
       required: true,
       message:
-        '跨日工时归属规则(字典: by_shift_start, by_calendar_day)不能为空',
+        '跨日工时归属规则不能为空',
     },
   ],
   status: [{ required: true, message: '状态(0正常1停用)不能为空' }],
-  remark: [{ required: true, message: '备注不能为空' }],
+  remark: [{ required: false, message: '备注不能为空' }],
 });
 
 /**
@@ -154,16 +155,21 @@ async function handleClosed() {
         <Input
           v-model:value="formData.crossDayRule"
           :placeholder="$t('ui.formRules.required')"
+          readonly
         />
       </FormItem>
-      <FormItem label="状态(0正常1停用)" v-bind="validateInfos.status">
+      <FormItem label="状态" v-bind="validateInfos.status">
         <RadioGroup
           option-type="button"
           button-style="solid"
           v-model:value="formData.status"
-          :options="[]"
+          :options="[
+      { label: '正常', value: 0 },
+      { label: '停用', value: 1 }
+    ]"
         />
       </FormItem>
+
       <FormItem label="备注" v-bind="validateInfos.remark">
         <Textarea
           v-model:value="formData.remark"

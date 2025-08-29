@@ -73,6 +73,34 @@ export const localMenuList: RouteRecordStringComponent[] = [
         component: '/hrp/configurationWorkbench/ConfigurationWorkbench.vue',
         meta: { title: '排班配置' },
       },
+      {
+        path: '/hrp/hrpBasicConfiguration',
+        name: 'hrpBasicConfiguration',
+        // component: '/hrp/configurationWorkbench/ConfigurationWorkbench.vue',
+        meta: { title: '基础配置' },
+        children: [
+          {
+            path: '/hrp/stores',
+            name: 'Stores',
+            component: '/hrp/stores/index',
+            meta: { title: '分店管理' },
+          },
+          {
+            path: '/hrp/skills',
+            name: 'Skills',
+            component: '/hrp/skills/index',
+            meta: { title: '技能管理' },
+          },
+          {
+            path: '/hrp/userSkills',
+            name: 'UserSkills',
+            component: '/hrp/userSkills/index',
+            meta: { title: '人员管理' },
+          },
+
+        ]
+      }
+
     ],
   },
 
