@@ -80,3 +80,8 @@ export function generateSchedule(data) {
 export function publishSchedule(params) {
   return requestClient.get<void>('/hrp/schedules/publish', { params });
 }
+
+// 回退排班计划
+export function revertToDraft(params) {
+  return requestClient.get<void>('/hrp/schedules/revert', { params });
+}

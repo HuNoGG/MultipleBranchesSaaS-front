@@ -40,7 +40,7 @@ export function storesInfo(id: ID) {
  * @returns void
  */
 export function storesAdd(data: StoresForm) {
-  return requestClient.postWithMsg<void>('/hrp/stores', data);
+  return requestClient.post<void>('/hrp/stores', data);
 }
 
 /**
@@ -49,7 +49,7 @@ export function storesAdd(data: StoresForm) {
  * @returns void
  */
 export function storesUpdate(data: StoresForm) {
-  return requestClient.putWithMsg<void>('/hrp/stores', data);
+  return requestClient.put<void>('/hrp/stores', data);
 }
 
 /**

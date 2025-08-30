@@ -1,793 +1,776 @@
 <script setup lang="ts">
-import type { TableColumnType } from 'ant-design-vue';
-
 // 按照要求修改 import 语句
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 // 按照要求修改 import 语句
 import {
-  CalendarOutlined,
-  CheckCircleOutlined,
   LeftOutlined,
+  PlusOutlined, // 新增图标
   RightOutlined,
 } from '@ant-design/icons-vue';
 import { message, Modal } from 'ant-design-vue';
 import dayjs, { Dayjs } from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
+import draggable from 'vuedraggable'; // 引入拖拽组件
 
 // 1. 接口导入路径已修改
 import { getWeeklySchedule, publishSchedule } from '#/api/hrp/schedules';
+import { storesList } from '#/api/hrp/stores';
 
-import { storeEventsAdd } from '../hrp/storeEvents';
-import { storesList } from '../hrp/stores';
 import AddSupplementModal from './AddSupplementModal.vue';
 import ScheduleModal from './ScheduleModal.vue';
 import ShiftAdjustModal from './ShiftAdjustModal.vue';
 
 dayjs.extend(weekOfYear);
 
-// ========== 数据模型定义 ==========
+// ========== 数据模型定义 (已更新) ==========
 interface Employee {
   id: number;
   name: string;
   type: '兼职' | '正职' | string;
-  skills?: string[];
+  skills?: any[];
 }
 interface ShiftAssignment {
-  id: number;
+  id: string;
   position: string;
   timeRange: string;
   shiftLabel: string;
-  shiftType?: string;
   shiftCode?: string;
   shiftColorCode?: string;
-  // 历史数据独有
+  userName: string;
   status?: string;
-  actualTimeRange?: string;
-  tag?: string; // 增补人员标签
+  // TODO: 新增 attendanceStatus 字段
+  attendanceStatus?: '忘记打卡' | '缺勤' | '迟到' | string;
+}
+interface DaySchedule {
+  date: string;
+  shifts: ShiftAssignment[];
+  isRestDay: boolean;
+  // TODO: 新增字段, 记录最严重的考勤状态
+  highestAttendanceIssue?: '忘记打卡' | '缺勤' | '迟到' | null;
 }
 interface ScheduleRow {
-  key: number;
   employee: Employee;
-  [dayKey: string]: any;
-}
-interface Store {
-  id: number;
-  name: string;
+  [date: string]: DaySchedule | Employee;
 }
 
-// ========== 状态管理 ==========
-const loading = ref(true);
-const activeStoreId = ref(1);
-const stores = reactive<Store[]>([]);
-const currentWeekStart = ref(dayjs().startOf('week'));
-const scheduleData = ref<ScheduleRow[]>([]);
-const employees = ref<Employee[]>([]);
+// ========== State 状态管理 ==========
+const branches = ref<any[]>([]);
+const storeId = ref<number | undefined>(undefined);
+const currentDate = ref<Dayjs>(dayjs());
+const columns = ref<any[]>([]); // 使用 any 以便存储 date 对象
+const tableData = ref<ScheduleRow[]>([]);
+const loading = ref(false);
+const scheduleStatus = ref('DRAFT');
 
-// ========== 弹窗逻辑 ==========
-const isScheduleModalVisible = ref(false);
-const shiftAdjustModalState = reactive({ visible: false, data: null });
-const isAddPersonModalVisible = ref(false);
-const isCurrentWeekPublished = ref(false);
+const scheduleModalVisible = ref(false);
+const shiftAdjustModalVisible = ref(false);
+const addSupplementModalVisible = ref(false);
+const modalData = ref<any>({}); // 用于向弹窗传递通用数据
 
-// ========== 计算属性 ==========
-const isPastWeek = computed(() =>
-  currentWeekStart.value.isBefore(dayjs().startOf('week')),
-);
-const weekDateRange = computed<[Dayjs, Dayjs]>(() => [
-  currentWeekStart.value,
-  currentWeekStart.value.endOf('week'),
-]);
+const isDraft = computed(() => scheduleStatus.value === 'DRAFT');
 
-const weekDays = computed(() => {
-  return Array.from({ length: 7 }).map((_, i) => {
-    const date = currentWeekStart.value.add(i, 'day');
-    return {
-      label: `${date.format('dddd')} (${date.format('M.DD')})`,
-      key: date.format('YYYY-MM-DD'),
-      date,
-    };
-  });
+// ========== 日期与表头计算 ==========
+const weekRangeText = computed(() => {
+  const startOfWeek = currentDate.value.startOf('week');
+  const endOfWeek = currentDate.value.endOf('week');
+  return `${startOfWeek.format('YYYY/MM/DD')} - ${endOfWeek.format('YYYY/MM/DD')} (第${currentDate.value.week()}周)`;
 });
 
-const scheduleTableColumns = computed<TableColumnType[]>(() => [
-  {
-    title: '员工',
-    dataIndex: 'employee',
-    key: 'employee',
-    fixed: 'left',
-    width: 120,
-  },
-  ...weekDays.value.map((day) => ({
-    title: day.label,
-    dataIndex: day.key,
-    key: day.key,
-    align: 'center',
-    width: 180,
-  })),
-]);
+const generateColumns = (dates: { date: string; label: string }[]) => {
+  const newColumns: any[] = [
+    {
+      title: '员工',
+      dataIndex: 'employee',
+      key: 'employee',
+      width: 120,
+      fixed: 'left',
+    },
+  ];
 
-// ========== API 调用与数据处理 ==========
+  if (!dates) return newColumns;
+
+  for (const dateInfo of dates) {
+    const date = dayjs(dateInfo.date);
+    newColumns.push({
+      date: dateInfo.date, // 直接存储日期字符串
+      label: dateInfo.label,
+      displayDate: date.format('MM/DD'),
+      key: dateInfo.date,
+      width: 160,
+    });
+  }
+  return newColumns;
+};
+
+// ========== API 数据获取与处理 ==========
 const fetchData = async () => {
+  if (!storeId.value) return;
   loading.value = true;
   try {
-    const params = {
-      storeId: activeStoreId.value,
-      startDate: currentWeekStart.value.format('YYYY-MM-DD'),
-      endDate: currentWeekStart.value.endOf('week').format('YYYY-MM-DD'),
-    };
+    const startOfWeek = currentDate.value.startOf('week').format('YYYY-MM-DD');
+    const endOfWeek = currentDate.value.endOf('week').format('YYYY-MM-DD');
 
-    // 调用统一的周数据接口
-    const data = await getWeeklySchedule(params);
-    isCurrentWeekPublished.value = data.status === 'PUBLISHED';
+    const res = await getWeeklySchedule({
+      storeId: storeId.value,
+      startDate: startOfWeek,
+      endDate: endOfWeek,
+    });
 
-    // 首次加载店铺列表
-    if (stores.length === 0) {
-      const storeList = await storesList();
-      // 使用 .push(...array) 来保持响应性
-      stores.push(...storeList.rows);
-    }
+    const apiData = res;
+    scheduleStatus.value =
+      apiData.status === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT';
+    columns.value = generateColumns(apiData.dates);
 
-    formatApiData(data);
+    const newTableData: ScheduleRow[] = apiData.employees.map((emp) => {
+      const scheduleRow: ScheduleRow = {
+        employee: {
+          id: emp.userId,
+          name: emp.userName,
+          type: emp.employeeType,
+          skills: emp.skills,
+        },
+      };
+
+      apiData.dates.forEach((dateInfo) => {
+        const dateStr = dateInfo.date;
+        const shiftsFromApi = apiData.scheduleRows[emp.userId]?.[dateStr] || [];
+
+        // TODO: 计算当前单元格最严重的考勤问题
+        let highestIssue: DaySchedule['highestAttendanceIssue'] = null;
+        if (
+          shiftsFromApi.some(
+            (s) =>
+              s.attendanceStatus === '缺勤' ||
+              s.attendanceStatus === '忘记打卡',
+          )
+        ) {
+          highestIssue = '缺勤'; // 缺勤和忘打卡都用橙色背景, 红色角标
+        } else if (shiftsFromApi.some((s) => s.attendanceStatus === '迟到')) {
+          highestIssue = '迟到';
+        }
+
+        const daySchedule: DaySchedule = {
+          date: dateStr,
+          highestAttendanceIssue: highestIssue, // 保存考勤状态
+          shifts: shiftsFromApi.map((shift) => {
+            let finalUserName = shift.userName || emp.userName;
+            if (shift.remark) {
+              try {
+                const remarkData = JSON.parse(shift.remark);
+                if (remarkData.employeeName)
+                  finalUserName = remarkData.employeeName;
+              } catch {
+                /* ignore */
+              }
+            }
+            return {
+              id: shift.id,
+              position: shift.skillName,
+              timeRange: `${shift.shiftStartTime} - ${shift.shiftEndTime}`,
+              shiftLabel: shift.shiftName,
+              shiftCode: shift.shiftCode,
+              shiftColorCode: shift.shiftColorCode,
+              isSubstitute: shift.attendanceStatus === '增补',
+              userName: finalUserName,
+              attendanceStatus: shift.attendanceStatus, // 传递考勤状态
+            };
+          }),
+          isRestDay: shiftsFromApi.length === 0,
+        };
+        scheduleRow[dateStr] = daySchedule;
+      });
+
+      return scheduleRow;
+    });
+
+    tableData.value = newTableData;
   } catch (error) {
-    console.error('获取排班数据失败:', error);
+    console.error('获取排班数据失败', error);
     message.error('获取排班数据失败');
-    scheduleData.value = [];
+    tableData.value = [];
   } finally {
     loading.value = false;
   }
 };
 
-const formatApiData = (apiData) => {
-  const { employees: apiEmployees, scheduleRows } = apiData;
-
-  employees.value = apiEmployees.map((e) => ({
-    id: e.userId,
-    name: e.userName,
-    type: e.employeeType,
-    skills: e.skills ? e.skills.map((s) => s.name) : [],
-  }));
-
-  scheduleData.value = employees.value.map((emp) => {
-    const row: ScheduleRow = { key: emp.id, employee: emp };
-    const dailySchedules = scheduleRows ? scheduleRows[emp.id] || {} : {};
-    for (const day of weekDays.value) {
-      const scheduleList = dailySchedules[day.key] || [];
-      const mainSchedule = scheduleList[0];
-      row[day.key] = mainSchedule
-        ? {
-            id: mainSchedule.id,
-            position: mainSchedule.skillName,
-            skillId: mainSchedule.skillId,
-            userId: mainSchedule.userId,
-            timeRange: `${mainSchedule.shiftStartTime.slice(0, 5)}-${mainSchedule.shiftEndTime.slice(0, 5)}`,
-            shiftLabel: mainSchedule.shiftName,
-            status: mainSchedule.attendanceStatus || '正常',
-            shiftType: emp.type === '正职' ? 'FullTime' : 'PartTime',
-            shiftCode: mainSchedule.shiftCode,
-            shiftColorCode: mainSchedule.shiftColorCode,
-            actualTimeRange: '未打卡', // 实际应从考勤记录获取
-            tag: mainSchedule.attendanceStatus,
-          }
-        : null;
-    }
-    return row;
-  });
-};
-
-// ========== 页面交互逻辑 ==========
-const changeWeek = (direction: -1 | 1) => {
-  currentWeekStart.value = currentWeekStart.value.add(direction, 'week');
-};
-
-onMounted(fetchData);
-watch([activeStoreId, currentWeekStart], fetchData);
-
-const handleCellClick = (record: ScheduleRow, dayKey: string) => {
-  const cellData = record[dayKey];
-  if (!cellData || isPastWeek.value) return;
-  shiftAdjustModalState.data = {
-    employee: record.employee,
-    shift: cellData,
-    date: weekDays.value.find((d) => d.key === dayKey)?.label || dayKey,
-    dayKey,
-    isPublished: isCurrentWeekPublished.value,
-    storeId: activeStoreId.value,
-  };
-  shiftAdjustModalState.visible = true;
-};
-
-const onDateChange = (dates) => {
-  if (dates && dates[0]) {
-    currentWeekStart.value = dates[0].startOf('week');
+onMounted(async () => {
+  const res = await storesList();
+  branches.value = res.rows;
+  if (branches.value.length > 0) {
+    storeId.value = branches.value[0].id;
+    await fetchData();
   }
+});
+
+watch(storeId, fetchData);
+
+// ========== 日期切换 ==========
+const prevWeek = () => {
+  currentDate.value = currentDate.value.subtract(1, 'week');
+  fetchData();
+};
+const nextWeek = () => {
+  currentDate.value = currentDate.value.add(1, 'week');
+  fetchData();
 };
 
-// 发布排班
-const handlePublishSchedule = () => {
+// ========== 弹窗操作 ==========
+const openShiftAdjustModal = (shiftInfo, employee, dayKey) => {
+  modalData.value = {
+    shift: shiftInfo,
+    employee,
+    dayKey,
+    storeId: storeId.value,
+    isPublished: !isDraft.value,
+  };
+  shiftAdjustModalVisible.value = true;
+};
+
+const triggerAutoSchedule = () => {
+  modalData.value = {
+    initialDate: currentDate.value.format('YYYY-MM-DD'),
+  };
+  scheduleModalVisible.value = true;
+};
+
+// ========== 发布排班 ==========
+const handlePublish = () => {
   Modal.confirm({
-    title: '确认发布当前周的排班计划吗？',
-    content: '发布后将锁定排班，并开始关联实时考勤。后续只能进行小范围调整。',
+    title: '确认发布排班?',
+    content: '发布后，排班将对员工可见，且无法进行大规模调整。',
     onOk: async () => {
       try {
-        loading.value = true;
         await publishSchedule({
-          storeId: activeStoreId.value,
-          startDate: currentWeekStart.value.format('YYYY-MM-DD'),
-          endDate: currentWeekStart.value.endOf('week').format('YYYY-MM-DD'),
+          storeId: storeId.value,
+          startDate: currentDate.value.startOf('week').format('YYYY-MM-DD'),
+          endDate: currentDate.value.endOf('week').format('YYYY-MM-DD'),
         });
-        message.success('排班发布成功！');
-        await fetchData();
-      } catch {
+        message.success('发布成功');
+        fetchData(); // 重新获取数据, 状态会变为 PUBLISHED
+      } catch (error) {
+        console.error('发布失败', error);
         message.error('发布失败');
-      } finally {
-        loading.value = false;
       }
     },
   });
 };
 
-// 整天/半天放假
-const handleDayHoliday = async ({ key: holidayType }, dayKey: string) => {
-  // 此处应调用后台接口来设置或取消当天的特殊事件
-  await storeEventsAdd({
-    storeId: activeStoreId.value,
-    eventDate: dayKey,
-    eventType: holidayType,
-    description:
-      holidayType === 'all-day'
-        ? '整天放假'
-        : holidayType === 'am-off'
-          ? '上午放假'
-          : '下午放假',
-  });
-  message.info(
-    `已为 ${dayKey} 设置 ${holidayType}。后台接口待实现，刷新后生效。`,
+// ========== 拖拽逻辑 ==========
+const onDragEnd = (event, employeeId) => {
+  const { oldIndex, newIndex, item } = event;
+  if (oldIndex === newIndex) return;
+
+  const shiftId = item.dataset.shiftId;
+  const fromDate = item.dataset.date;
+  const toDate = columns.value[newIndex + 1]?.key as string;
+
+  if (!toDate) {
+    console.warn('拖拽目标位置无效');
+    fetchData();
+    return;
+  }
+
+  console.log(
+    `拖拽操作: 员工ID: ${employeeId}, 班次ID: ${shiftId}, 从: ${fromDate}, 到: ${toDate}`,
   );
-  fetchData();
+  message.info(`模拟调整: 班次 ${shiftId} 已从 ${fromDate} 移至 ${toDate}`);
+
+  const employeeRow = tableData.value.find(
+    (row) => row.employee.id === employeeId,
+  );
+  if (employeeRow) {
+    const fromDay = employeeRow[fromDate] as DaySchedule;
+    const toDay = employeeRow[toDate] as DaySchedule;
+    if (fromDay && toDay) {
+      const shiftIndex = fromDay.shifts.findIndex((s) => s.id === shiftId);
+      if (shiftIndex !== -1) {
+        const [movedShift] = fromDay.shifts.splice(shiftIndex, 1);
+        toDay.shifts.push(movedShift);
+      }
+    }
+  }
 };
 
-// ... 其他按钮逻辑 (智能排班, 重置, 增补, 导出)
-const handleSmartSchedule = () => (isScheduleModalVisible.value = true);
-const handleResetSchedule = () => {
-  Modal.confirm({
-    title: '确认重置排班表吗？',
-    content: '所有已安排的班次都将被清空。',
-    onOk: () => {
-      scheduleData.value.forEach((row) => {
-        weekDays.value.forEach((day) => {
-          row[day.key] = null;
-        });
-      });
-      message.success('排班表已清空');
-    },
-  });
-};
-// ========== 单元格样式 ==========
-const getAttendanceColor = (shift: ShiftAssignment) => {
-  return shift?.status === '迟到' || shift.status === '早退'
-    ? 'red'
-    : 'inherit';
-};
+// ========== 样式计算逻辑 ==========
+const getShiftStyle = (shift: ShiftAssignment, employeeType: string) => {
+  // #1 历史数据中 "迟到" 状态的卡片显示为红色
+  if (!isDraft.value && shift.attendanceStatus === '迟到') {
+    return { backgroundColor: '#f5222d', borderColor: '#a8071a' };
+  }
 
-const getCellStyle = (shift: ShiftAssignment, employeeType: string) => {
-  if (!shift) return {};
+  // #3 "兼职" 员工的班次显示为深橙色
+  if (employeeType === '兼职') {
+    return { backgroundColor: '#D97E00', borderColor: '#B36600' };
+  }
 
-  if (isPastWeek.value) {
-    const historyStyleMap = {
-      迟到: { backgroundColor: '#fff1f0' },
-      迟到未请假: { backgroundColor: '#fff1f0' },
-      早退: { backgroundColor: '#fff1f0' },
-      早退未请假: { backgroundColor: '#fff1f0' },
-      缺勤: { backgroundColor: '#fff1f0' },
-      忘记打卡: { backgroundColor: '#fff1f0' },
-      旷工: { backgroundColor: '#fff1f0' },
-      请假: { backgroundColor: '#fffbe6' },
-      正常: { backgroundColor: '#f9f9f9' },
-      代班: { backgroundColor: '#e6f7ff' },
-      增补: { backgroundColor: '#f6ffed' },
+  if (shift.shiftColorCode && shift.shiftColorCode !== '#e6f7ff') {
+    return {
+      backgroundColor: `color-mix(in srgb, ${shift.shiftColorCode} 90%, #000 10%)`,
+      borderColor: `color-mix(in srgb, ${shift.shiftColorCode} 60%, #000 40%)`,
     };
-
-    return historyStyleMap[shift.status] || { backgroundColor: '#f0f2f5' };
   }
-
-  // 未来样式
-  let shiftType;
-  debugger;
-  if (employeeType === '正职') {
-    shiftType = 'FullTime';
-  } else if (employeeType === '兼职') {
-    shiftType =
-      shift.shiftCode === '早'
-        ? 'PartTimeMorning'
-        : shift.shiftCode === '晚'
-          ? 'PartTimeEvening'
-          : 'PartTime';
-  } else {
-    shiftType = 'supplement';
+  switch (shift.shiftCode) {
+    case '全': {
+      return { backgroundColor: '#369EFF', borderColor: '#006DFF' };
+    }
+    case '早': {
+      return { backgroundColor: '#00C29A', borderColor: '#00A37F' };
+    }
+    case '晚': {
+      return { backgroundColor: '#FFB800', borderColor: '#D99800' };
+    }
+    default: {
+      return { backgroundColor: '#86909c', borderColor: '#4e5969' };
+    }
   }
-  const futureStyleMap = {
-    FullTime: { background: 'rgba(68, 99, 255, 1)' },
-    PartTimeM: {
-      background:
-        'linear-gradient(to left, rgba(221, 172, 51, 0.2), rgba(221, 172, 51, 0.05))',
-    },
-    PartTimeMorning: {
-      background:
-        'linear-gradient(to left, rgba(221, 172, 51, 0.2), rgba(221, 172, 51, 0.05))',
-    },
-    PartTimeEvening: {
-      background:
-        'linear-gradient(to right, rgba(221, 172, 51, 0.2), rgba(221, 172, 51, 0.05))',
-    },
-    PartTime: {
-      background:
-        'linear-gradient(to right, rgba(221, 172, 51, 0.2), rgba(221, 172, 51, 0.05))',
-    },
-    supplement: {
-      background:
-        'linear-gradient(to right, rgba(221, 172, 51, 0.2), rgba(221, 172, 51, 0.05))',
-    },
-  };
-  return futureStyleMap[shiftType] || {};
 };
 
-const getCornerFlagStyle = (shift: ShiftAssignment) => {
-  if (!shift || shift.status === '正常' || shift.status === '假期')
-    return { display: 'none' };
-  const color = getStatusTextColor(shift);
-  return {
-    borderTopColor: color,
-    borderRightColor: 'transparent',
-    borderBottomColor: 'transparent',
-    borderLeftColor: color,
-  };
-};
-
-// 3. 迟到早退的此处代码需要加入:
-const getStatusTextColor = (shift: ShiftAssignment) => {
-  if (!shift) return 'inherit';
-  const colorMap = {
-    迟到: '#f5222d',
-    迟到未请假: '#f5222d',
-    早退: '#f5222d',
-    早退未请假: '#f5222d',
-    旷工: '#f5222d',
-    缺勤: '#f5222d',
-    忘记打卡: '#f5222d',
-    请假: '#d48806',
-    代班: '#1890ff',
-    增补: '#52c41a',
-  };
-  return colorMap[shift.status] || 'inherit';
+const getCellClass = (day: DaySchedule) => {
+  if (!day || isDraft.value) return '';
+  // #1 "迟到" 不再改变单元格背景色, 只改变卡片颜色
+  switch (day.highestAttendanceIssue) {
+    case '忘记打卡': {
+      return 'cell-status-forgot';
+    }
+    case '缺勤': {
+      return 'cell-status-absent';
+    }
+    default: {
+      return '';
+    }
+  }
 };
 </script>
 
 <template>
-  <div class="scheduling-page-container">
-    <div class="left-panel">
-      <div class="search-section">
-        <a-input-search placeholder="搜索分店" style="width: 100%" />
-      </div>
-      <div class="store-list">
-        <div
-          v-for="store in stores"
-          :key="store.id"
-          class="store-item"
-          :class="[{ active: store.id === activeStoreId }]"
-          @click="activeStoreId = store.id"
-        >
-          <div class="store-name">{{ store.name }}</div>
-          <div class="store-id">编号：{{ store.id }}</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="right-panel">
-      <a-card :bordered="false" class="filter-card">
-        <a-button-group>
-          <a-button @click="changeWeek(-1)">
-            <LeftOutlined />
-          </a-button>
-          <a-range-picker
-            :value="weekDateRange"
-            :bordered="false"
-            style="width: 240px"
-            @change="onDateChange"
-          />
-          <a-button @click="changeWeek(1)">
-            <RightOutlined />
-          </a-button>
-        </a-button-group>
-      </a-card>
-
-      <a-card :bordered="false" class="schedule-card">
-        <template #title>
-          <div class="card-title-wrapper">
-            <a-space align="center">
-              <span>周度排班表</span>
-              <a-tag
-                v-if="!isPastWeek && isCurrentWeekPublished"
-                color="#87d068"
-              >
-                <template #icon><CheckCircleOutlined /></template>
-                已发布
-              </a-tag>
-              <a-tag
-                v-if="!isPastWeek && !isCurrentWeekPublished"
-                color="#2db7f5"
-              >
-                <template #icon><CheckCircleOutlined /></template>
-                草稿
-              </a-tag>
-              <a-tag v-if="isPastWeek && isCurrentWeekPublished" color="#f50">
-                <template #icon><CheckCircleOutlined /></template>
-                历史
-              </a-tag>
-            </a-space>
-            <a-space>
-              <template v-if="isPastWeek">
-                <a-button type="primary">导出历史</a-button>
-              </template>
-              <template v-else>
-                <template v-if="isCurrentWeekPublished">
-                  <a-button @click="isAddPersonModalVisible = true">
-                    增补人员
-                  </a-button>
-                  <a-button type="primary">导出</a-button>
-                </template>
-                <template v-else>
-                  <a-button @click="handleResetSchedule">重置排班表</a-button>
-                  <a-button type="primary" @click="handleSmartSchedule">
-                    智能排班
-                  </a-button>
-                  <a-button
-                    @click="handlePublishSchedule"
-                    style="color: #52c41a; border-color: #52c41a"
-                  >
-                    发布版本
-                  </a-button>
-                </template>
-              </template>
-            </a-space>
-          </div>
-        </template>
-
-        <a-table
-          :columns="scheduleTableColumns"
-          :data-source="scheduleData"
-          :loading="loading"
-          :pagination="false"
-          bordered
-          size="middle"
-          :scroll="{ x: 1200, y: 'calc(100vh - 400px)' }"
-        >
-          <template #headerCell="{ column }">
-            <div
-              v-if="weekDays.map((d) => d.key).includes(String(column.key))"
-              class="date-header"
+  <div class="schedule-page-container">
+    <a-card class="header-card" :bordered="false">
+      <a-row justify="space-between" align="middle">
+        <a-col>
+          <a-space>
+            <a-select
+              v-model:value="storeId"
+              placeholder="选择分店"
+              style="width: 150px"
             >
-              <span>{{ column.title }}</span>
-              <a-dropdown :trigger="['click']">
-                <CalendarOutlined class="holiday-icon" />
-                <template #overlay>
-                  <a-menu @click="(e) => handleDayHoliday(e, column.key)">
-                    <a-menu-item key="all-day">整天放假</a-menu-item>
-                    <a-menu-item key="am-off">上午放假</a-menu-item>
-                    <a-menu-item key="pm-off">下午放假</a-menu-item>
-                    <a-menu-divider />
-                    <a-menu-item key="cancel-off">取消放假</a-menu-item>
-                  </a-menu>
-                </template>
-              </a-dropdown>
+              <a-select-option v-for="b in branches" :key="b.id" :value="b.id">
+                {{ b.name }}
+              </a-select-option>
+            </a-select>
+            <a-button @click="prevWeek"><LeftOutlined /></a-button>
+            <span class="week-range-text">{{ weekRangeText }}</span>
+            <a-button @click="nextWeek"><RightOutlined /></a-button>
+          </a-space>
+        </a-col>
+        <a-col>
+          <a-space>
+            <a-tag v-if="isDraft" color="blue">草稿状态</a-tag>
+            <a-tag v-else color="green">已发布</a-tag>
+            <a-button>导入</a-button>
+            <a-button>另存为模板</a-button>
+            <a-button type="dashed" v-if="isDraft" @click="triggerAutoSchedule">
+              手动排班
+            </a-button>
+            <a-button type="primary" v-if="isDraft" @click="handlePublish">
+              发布排班
+            </a-button>
+          </a-space>
+        </a-col>
+      </a-row>
+    </a-card>
+
+    <div
+      class="schedule-grid-container"
+      v-if="!loading && tableData.length > 0"
+    >
+      <div
+        class="schedule-grid"
+        :style="{
+          'grid-template-columns': `120px repeat(${columns.length - 1}, 1fr)`,
+        }"
+      >
+        <div class="grid-header sticky-col">员工</div>
+        <div
+          v-for="col in columns.slice(1)"
+          :key="col.key"
+          class="grid-header sticky-header"
+        >
+          <div class="date-text">{{ col.displayDate }}</div>
+          <div class="day-of-week">{{ col.label }}</div>
+        </div>
+
+        <template
+          v-for="employeeRow in tableData"
+          :key="employeeRow.employee.id"
+        >
+          <div class="employee-cell sticky-col">
+            <div class="employee-name-text">
+              {{ employeeRow.employee.name }}
             </div>
-          </template>
-          <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'employee'">
-              <a-space align="center">
-                <span>{{ record.employee.name }}</span>
-                <a-tag v-if="record.employee.type === '正职'" color="blue">
-                  正
-                </a-tag>
-                <a-tag v-if="record.employee.type === '兼职'" color="orange">
-                  兼
-                </a-tag>
-              </a-space>
-            </template>
-            <template v-else>
-              <div v-if="record[column.key]">
-                <a-popover v-if="isPastWeek" trigger="click" placement="right">
-                  <template #content>
-                    <div class="popover-content">
-                      <a-avatar size="large">
-                        {{ record.employee.name.charAt(0) }}
-                      </a-avatar>
-                      <div class="employee-info">
-                        <h3>{{ record.employee.name }}</h3>
-                        <p>{{ column.title }}</p>
-                      </div>
-                      <a-descriptions :column="1" size="small" class="mt-4">
-                        <a-descriptions-item label="上班时间">
-                          {{ record[column.key]?.timeRange }}
-                        </a-descriptions-item>
-                        <a-descriptions-item label="本日考勤">
-                          <span
-                            :style="{
-                              color: getAttendanceColor(record[column.key]),
-                            }"
-                          >
-                            {{ record[column.key]?.actualTimeRange }}
-                          </span>
-                        </a-descriptions-item>
-                        <a-descriptions-item label="员工ID">
-                          {{ record.employee.id }}
-                        </a-descriptions-item>
-                        <a-descriptions-item label="类型">
-                          {{ record.employee.type }}
-                        </a-descriptions-item>
-                        <a-descriptions-item label="技能">
+            <div class="employee-type-text">
+              {{ employeeRow.employee.type }}
+            </div>
+          </div>
+
+          <draggable
+            :list="columns.slice(1)"
+            group="columns"
+            item-key="key"
+            class="contents"
+            :disabled="true"
+          >
+            <template #item="{ element: col }">
+              <div
+                class="schedule-cell"
+                :class="getCellClass(employeeRow[col.key] as DaySchedule)"
+              >
+                <div
+                  v-if="
+                    !isDraft &&
+                    (employeeRow[col.key] as DaySchedule).highestAttendanceIssue
+                  "
+                  class="corner-flag"
+                ></div>
+
+                <draggable
+                  :list="(employeeRow[col.key] as DaySchedule).shifts"
+                  :group="{ name: `schedule-group-${employeeRow.employee.id}` }"
+                  item-key="id"
+                  class="shift-list"
+                  :disabled="!isDraft"
+                  @end="(event) => onDragEnd(event, employeeRow.employee.id)"
+                  :move="() => isDraft"
+                >
+                  <template #item="{ element: shift }">
+                    <div
+                      class="shift-card"
+                      :style="getShiftStyle(shift, employeeRow.employee.type)"
+                      @click.stop="
+                        openShiftAdjustModal(
+                          shift,
+                          employeeRow.employee,
+                          col.key,
+                        )
+                      "
+                      :data-shift-id="shift.id"
+                      :data-date="col.key"
+                    >
+                      <a-tooltip
+                        :title="shift.isSubstitute ? `为他人替班` : ''"
+                      >
+                        <div class="shift-card-header">
+                          <span class="position">{{ shift.position }}</span>
                           <a-tag
-                            v-for="skill in record.employee.skills"
-                            :key="skill"
+                            v-if="shift.attendanceStatus"
+                            color="orange"
+                            class="sub-tag"
                           >
-                            {{ skill }}
+                            {{
+                              shift.attendanceStatus === '增补'
+                                ? '替'
+                                : shift.attendanceStatus[0]
+                            }}
                           </a-tag>
-                        </a-descriptions-item>
-                      </a-descriptions>
+                        </div>
+                        <div class="time-range">{{ shift.timeRange }}</div>
+                      </a-tooltip>
                     </div>
                   </template>
-                  <div
-                    class="shift-cell-history cell-content"
-                    :style="
-                      getCellStyle(record[column.key], record.employee.type)
-                    "
-                  >
-                    <div
-                      class="corner-flag"
-                      :style="getCornerFlagStyle(record[column.key])"
-                    ></div>
-                    <span
-                      class="status-text"
-                      :style="{
-                        color: getStatusTextColor(record[column.key]),
-                      }"
-                    >
-                      【{{
-                        record[column.key].tag || record[column.key].status
-                      }}】
-                    </span>
-                    <span>
-                      {{ record[column.key].position }}
-                      {{ record[column.key].timeRange }}
-                    </span>
-                  </div>
-                </a-popover>
+                </draggable>
+
                 <div
-                  v-else
-                  class="cell-content"
-                  @click="() => handleCellClick(record, column.key)"
+                  v-if="(employeeRow[col.key] as DaySchedule).isRestDay"
+                  class="day-off"
                 >
-                  <div
-                    class="shift-cell"
-                    :style="
-                      getCellStyle(record[column.key], record.employee.type)
-                    "
-                  >
-                    <div class="position">
-                      {{ record[column.key].position }}
-                    </div>
-                    <div class="time-range">
-                      {{ record[column.key].timeRange }}
-                    </div>
-                    <div class="shift-type">
-                      <a-tag
-                        :color="
-                          record.employee.type === '正职' ? 'blue' : 'orange'
-                        "
-                        :bordered="false"
-                      >
-                        {{ record[column.key].shiftLabel }}
-                      </a-tag>
-                    </div>
-                  </div>
+                  休
                 </div>
-              </div>
-              <div v-else class="cell-content">
-                <div class="rest-cell">休息</div>
+
+                <a-button
+                  v-if="
+                    !(employeeRow[col.key] as DaySchedule).isRestDay &&
+                    isDraft &&
+                    (employeeRow[col.key] as DaySchedule).shifts.length === 0
+                  "
+                  class="add-shift-btn"
+                  type="text"
+                  shape="circle"
+                  @click.stop="
+                    () => {
+                      modalData = {
+                        employee: employeeRow.employee,
+                        date: col.date,
+                      };
+                      scheduleModalVisible = true;
+                    }
+                  "
+                >
+                  <PlusOutlined />
+                </a-button>
               </div>
             </template>
-          </template>
-        </a-table>
-      </a-card>
+          </draggable>
+        </template>
+      </div>
     </div>
+    <a-spin
+      :spinning="loading"
+      size="large"
+      tip="正在加载排班表..."
+      class="mt-10 w-full"
+      v-else
+    />
 
     <ScheduleModal
-      v-model:visible="isScheduleModalVisible"
-      :store-id="activeStoreId"
-      :employees="employees"
-      :week-days="weekDays"
-    />
-
-    <ShiftAdjustModal
-      v-model:visible="shiftAdjustModalState.visible"
-      :modal-data="shiftAdjustModalState.data"
+      v-model:visible="scheduleModalVisible"
+      :store-id="storeId"
+      :initial-data="modalData"
       @submit="fetchData"
     />
-
+    <ShiftAdjustModal
+      v-model:visible="shiftAdjustModalVisible"
+      :modal-data="modalData"
+      @submit="fetchData"
+    />
     <AddSupplementModal
-      v-model:visible="isAddPersonModalVisible"
-      :store-id="activeStoreId"
-      :employees="employees"
-      :week-days="weekDays"
+      v-model:visible="addSupplementModalVisible"
+      :store-id="storeId"
+      :employees="modalData.employees"
+      :week-days="modalData.weekDays"
       @submit="fetchData"
     />
   </div>
 </template>
 
 <style lang="less" scoped>
-.scheduling-page-container {
-  display: flex;
-  height: calc(100vh - 88px);
+.schedule-page-container {
+  padding: 16px;
   background-color: #f0f2f5;
-  overflow: hidden;
-}
-.left-panel {
-  width: 240px;
-  background-color: #fff;
-  border-right: 1px solid #e8e8e8;
+  height: calc(100vh - 88px);
   display: flex;
   flex-direction: column;
-  padding: 16px;
-  .search-section {
-    margin-bottom: 16px;
-  }
-  .store-list {
-    overflow-y: auto;
-    flex-grow: 1;
-    .store-item {
-      padding: 12px;
-      cursor: pointer;
-      border-radius: 4px;
-      margin-bottom: 8px;
-      transition: background-color 0.3s;
-      &:hover {
-        background-color: #f5f5f5;
-      }
-      &.active {
-        background-color: #e6f7ff;
-        .store-name {
-          color: #1890ff;
-        }
-      }
-      .store-name {
-        font-weight: 500;
-      }
-      .store-id {
-        font-size: 12px;
-        color: #888;
-      }
-    }
-  }
 }
-.right-panel {
-  flex: 1;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.filter-card,
-.schedule-card {
-  margin-bottom: 16px;
-}
-.schedule-card {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
 
-  :deep(.ant-table-wrapper) {
-    flex-grow: 1;
-    overflow: hidden;
-  }
-  :deep(.ant-table-body) {
-    overflow-y: auto !important;
+.header-card {
+  margin-bottom: 16px;
+  flex-shrink: 0;
+  .week-range-text {
+    font-size: 16px;
+    font-weight: 500;
+    margin: 0 8px;
   }
 }
-.card-title-wrapper {
+
+.schedule-grid-container {
+  flex-grow: 1;
+  overflow: auto;
+  background-color: #fff;
+  border-radius: 4px;
+  border: 1px solid #e8e8e8;
+}
+
+.schedule-grid {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+}
+
+.grid-header,
+.employee-cell {
+  text-align: center;
+  font-size: 14px;
+  padding: 8px;
+  background-color: #fafafa;
+  border-bottom: 1px solid #e8e8e8;
+  border-right: 1px solid #e8e8e8;
+}
+
+.grid-header {
+  font-weight: 600;
+  color: #333;
+  .date-text {
+    font-size: 14px;
+  }
+  .day-of-week {
+    font-size: 12px;
+    color: #666;
+  }
+}
+
+.employee-cell {
+  font-weight: 500;
+  padding: 4px;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  justify-content: center;
   align-items: center;
-}
-.cell-content {
   height: 100%;
-  width: 100%;
-  cursor: pointer;
+  .employee-name-text {
+    font-weight: bold;
+  }
+  .employee-type-text {
+    font-size: 12px;
+    color: #888;
+  }
 }
-.shift-cell {
-  text-align: left;
+
+.sticky-col,
+.sticky-header {
+  position: sticky;
+  z-index: 1;
+}
+.sticky-col {
+  left: 0;
+  z-index: 2;
+  border-right: 2px solid #d9d9d9;
+}
+.sticky-header {
+  top: 0;
+}
+.grid-header.sticky-col {
+  z-index: 3;
+}
+
+.schedule-cell {
+  border-right: 1px solid #e8e8e8;
+  border-bottom: 1px solid #e8e8e8;
+  padding: 4px;
+  min-height: 100px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: background-color 0.3s;
+
+  .day-off {
+    font-size: 16px;
+    font-weight: 500;
+    color: #888;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+}
+
+// TODO: #5 新增考勤状态样式
+.cell-status-late {
+  background-color: #fff1f0;
+} // 红色背景
+.cell-status-absent,
+.cell-status-forgot {
+  background-color: #fffbe6;
+} // 橙色背景
+
+.corner-flag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 12px 12px 0 0;
+  z-index: 2;
+}
+.cell-status-late .corner-flag,
+.cell-status-forgot .corner-flag {
+  border-color: #ff4d4f transparent transparent transparent; // 红色
+}
+.cell-status-absent .corner-flag {
+  border-color: #faad14 transparent transparent transparent; // 橙色
+}
+
+.shift-list {
+  width: 100%;
+  min-height: 70px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shift-card {
   padding: 4px 8px;
   border-radius: 4px;
-  height: 100%;
-  .position {
-    font-weight: 500;
+  color: #fff;
+  cursor: grab;
+  border-left: 5px solid;
+  transition: all 0.2s ease-in-out;
+  position: relative;
+  z-index: 1;
+
+  &:active {
+    cursor: grabbing;
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+  }
+
+  .shift-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    .position {
+      font-weight: 500;
+      font-size: 13px;
+    }
+    .sub-tag {
+      height: 16px;
+      line-height: 14px;
+      padding: 0 4px;
+      font-size: 10px;
+      border-radius: 2px;
+      margin-left: 4px;
+    }
   }
   .time-range {
     font-size: 12px;
-  }
-  .shift-type {
-    margin-top: 4px;
-  }
-
-  // 修复点: 动态样式已移至 getCellStyle, 此处仅保留结构
-  &.light-text {
-    color: #fff;
-    .time-range {
-      color: #f0f0f0;
-    }
-    :deep(.ant-tag) {
-      background-color: rgba(255, 255, 255, 0.2) !important;
-      border-color: rgba(255, 255, 255, 0.5) !important;
-      color: #fff;
-    }
+    opacity: 0.9;
   }
 }
-.shift-cell-history {
-  position: relative;
-  padding: 8px;
-  padding-left: 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-  overflow: hidden;
-  text-align: left;
 
-  .corner-flag {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 0;
-    height: 0;
-    border-style: solid;
-    border-width: 12px;
-  }
-
-  .status-text {
-    font-weight: 500;
-  }
+.sortable-ghost {
+  opacity: 0.4;
+  background-color: #cce5ff;
+  border: 1px dashed #007bff;
 }
-.rest-cell {
-  color: #aaa;
+.sortable-chosen {
+  opacity: 0.8;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+// TODO: #3 调整新增按钮样式
+.add-shift-btn {
+  width: 28px;
+  height: 28px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
-}
-.date-header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  .holiday-icon {
-    cursor: pointer;
-    color: #888;
-    &:hover {
-      color: #1890ff;
-    }
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  color: #888;
+  border: 1px dashed #d9d9d9;
+
+  &:hover {
+    color: #1677ff;
+    border-color: #1677ff;
+    transform: translate(-50%, -50%) scale(1.1);
   }
 }
-.popover-content {
-  width: 280px;
-  .employee-info {
-    display: inline-block;
-    vertical-align: top;
-    margin-left: 16px;
-    h3 {
-      margin-bottom: 0;
-    }
-    p {
-      color: #888;
-    }
-  }
+
+.schedule-cell:hover .add-shift-btn {
+  // 只有在草稿模式下, 并且没有班次时才显示
+  opacity: 1;
+}
+
+.contents {
+  display: contents;
 }
 </style>

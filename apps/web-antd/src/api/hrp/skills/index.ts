@@ -40,7 +40,7 @@ export function skillsInfo(id: ID) {
  * @returns void
  */
 export function skillsAdd(data: SkillsForm) {
-  return requestClient.postWithMsg<void>('/hrp/skills', data);
+  return requestClient.post<void>('/hrp/skills', data);
 }
 
 /**
@@ -49,7 +49,7 @@ export function skillsAdd(data: SkillsForm) {
  * @returns void
  */
 export function skillsUpdate(data: SkillsForm) {
-  return requestClient.putWithMsg<void>('/hrp/skills', data);
+  return requestClient.put<void>('/hrp/skills', data);
 }
 
 /**
@@ -58,5 +58,5 @@ export function skillsUpdate(data: SkillsForm) {
  * @returns void
  */
 export function skillsRemove(id: ID | IDS) {
-  return requestClient.deleteWithMsg<void>(`/hrp/skills/${id}`);
+  return requestClient.delete<void>(`/hrp/skills/${id}`);
 }

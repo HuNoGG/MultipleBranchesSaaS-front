@@ -25,7 +25,6 @@
   },
   "type": "module",
   "scripts": {
-
     "build": "cross-env NODE_OPTIONS=--max-old-space-size=8192 turbo build",
     "build:analyze": "turbo build:analyze",
     "build:antd": "pnpm run build --filter=@vben/web-antd",
@@ -53,6 +52,9 @@
     "update:deps": "npx taze -r -w",
     "version": "pnpm exec changeset version && pnpm install --no-frozen-lockfile",
     "catalog": "pnpx codemod pnpm/catalog"
+  },
+  "dependencies": {
+    "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
     "@changesets/changelog-github": "catalog:",

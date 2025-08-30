@@ -1,11 +1,14 @@
 <script setup lang="ts">
+import type { SkillsVO } from '../skills/model';
+
 import type { Availability } from '#/api/hrp/userAvailability/model';
 
-import { reactive, ref, watch } from 'vue';
+import { onMounted, reactive, ref, watch } from 'vue';
 
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 
+import { skillsList } from '#/api/hrp/skills';
 import { saveExtendedInfo } from '#/api/hrp/userProfile';
 
 // ========== 数据模型定义 ==========
@@ -35,13 +38,17 @@ const props = defineProps({
     type: Object as () => Employee,
     required: true,
   },
-  allSkills: {
-    type: Array as () => Skill[],
-    default: () => [],
+  storeId: {
+    type: String,
+    required: true,
   },
   allStores: {
     type: Array as () => Store[],
     default: () => [],
+  },
+  title: {
+    type: String,
+    default: '',
   },
 });
 
@@ -51,6 +58,7 @@ const emit = defineEmits(['update:visible', 'submit']);
 const isModalVisible = ref(false);
 const loading = ref(false);
 const formState = reactive<Partial<Employee>>({});
+const allSkills = ref<SkillsVO[]>([]);
 const weekDayOptions = [
   { label: '周一', value: 1 },
   { label: '周二', value: 2 },
@@ -66,9 +74,9 @@ const handleOk = async () => {
   loading.value = true;
   try {
     // TODO MOCK: 此处应调用更新员工信息的API
+    formState.skills = formState.skillList as number[];
     await saveExtendedInfo(formState);
     console.log('Saving employee data:', formState);
-    message.success(`员工 ${formState.userName} 的信息已更新`);
     emit('submit');
     handleCancel();
   } catch {
@@ -113,12 +121,17 @@ watch(
     }
   },
 );
+onMounted(async () => {
+  // TODO: 加载技能列表
+  const data = await skillsList({ storeId: props.storeId });
+  allSkills.value = data.rows;
+});
 </script>
 
 <template>
   <a-modal
     v-model:visible="isModalVisible"
-    :title="`编辑员工属性 - ${formState.name}`"
+    :title="title || `编辑员工属性 - ${formState.name}`"
     width="700px"
     :confirm-loading="loading"
     @ok="handleOk"
@@ -142,7 +155,7 @@ watch(
         <a-col :span="12">
           <a-form-item label="技能 (可多选)">
             <a-select
-              v-model:value="formState.skills"
+              v-model:value="formState.skillList"
               mode="multiple"
               placeholder="请选择员工掌握的技能"
               :options="allSkills.map((s) => ({ value: s.id, label: s.name }))"
@@ -196,7 +209,7 @@ watch(
             </a-button>
           </a-form-item>
         </a-col>
-        <a-col :span="24">
+        <!-- <a-col :span="24">
           <a-form-item label="支援外店 (可多选)">
             <a-select
               v-model:value="formState.supportStoreIds"
@@ -209,7 +222,7 @@ watch(
               "
             />
           </a-form-item>
-        </a-col>
+        </a-col> -->
       </a-row>
     </a-form>
   </a-modal>

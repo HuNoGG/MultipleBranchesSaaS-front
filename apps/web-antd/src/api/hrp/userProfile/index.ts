@@ -72,6 +72,15 @@ export function userProfileAdd(data: UserProfileForm) {
 }
 
 /**
+ * 新增员工档案扩展
+ * @param data
+ * @returns void
+ */
+export function saveExtendedInfo(data: any) {
+  return requestClient.put<void>('/hrp/userProfile/saveExtendedInfo', data);
+}
+
+/**
  * 更新员工档案扩展
  * @param data
  * @returns void

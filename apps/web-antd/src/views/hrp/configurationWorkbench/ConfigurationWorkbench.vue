@@ -210,7 +210,7 @@ const handleSaveRequirements = async (type: 'holiday' | 'weekday') => {
     .map((req) => ({
       shiftId: req.shiftId,
       skillId: req.skillId,
-      count: req.requiredCount,
+      requiredCount: req.requiredCount,
     }));
 
   // 2. 构建与 DailyRequirementsDto 完全匹配的 payload
@@ -276,7 +276,7 @@ const requirementColumns = computed<TableColumnType[]>(() => [
     dataIndex: 'requirements', // 指向一个不存在的字段，因为我们将使用 bodyCell 模板
     key: skill.id,
     width: 100,
-    align: 'center',
+    align: 'center' as AlignType,
   })),
 ]);
 
@@ -402,7 +402,7 @@ const handleShiftOk = async () => {
     startTime: shiftForm.timeRange[0],
     endTime: shiftForm.timeRange[1],
     isCrossDay: !!shiftForm.isCrossDay, // 转换为 boolean
-    color: shiftForm.colorCode, // 属性名转换
+    colorCode: shiftForm.colorCode, // 属性名转换
     breakTimes: shiftForm.breakTimes
       .filter((bt) => bt.range && bt.range.length === 2) // 过滤掉未设置时间的休息
       .map((bt) => ({

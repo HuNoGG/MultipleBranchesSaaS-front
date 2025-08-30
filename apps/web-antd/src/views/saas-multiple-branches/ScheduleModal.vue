@@ -1,203 +1,318 @@
-/* eslint-disable */
 <script setup lang="ts">
+/* eslint-disable */
 import type { TableColumnType } from 'ant-design-vue';
-
 import { computed, reactive, ref, watch } from 'vue';
+import { message, Modal, Tag } from 'ant-design-vue';
+import dayjs from 'dayjs';
 
-import { message } from 'ant-design-vue';
-
-// TODO 1. 引入后台智能排班接口
-import { generateSchedule } from '#/api/hrp/schedules';
+// TODO: 引入所有需要的API
+import { generateSchedule, getWeeklySchedule } from '#/api/hrp/schedules'; // 引入getWeeklySchedule获取上周数据
+import { scheduleRequirementsAllTypeList } from '#/api/hrp/scheduleRequirements';
+import { shiftsAndRestTime } from '#/api/hrp/shifts';
 import { skillsList } from '#/api/hrp/skills';
-// 引入API
 import { listUserprofileWithSkills } from '#/api/hrp/userProfile';
+// TODO: #1 引入更新用户技能的API
 import { addUserSkill, removeUserSkill } from '#/api/hrp/userSkills';
+import { h } from 'vue';
 
 // ========== Props and Emits ==========
 const props = defineProps({
   visible: Boolean,
   storeId: {
-    // 从父组件接收当前店铺ID
     type: Number,
     required: true,
   },
-  // eslint-disable-next-line vue/require-default-prop
-  employees: Array as () => Employee[],
-  // eslint-disable-next-line vue/require-default-prop
-  weekDays: Array as () => { key: string; label: string }[],
+  initialData: {
+    type: Object,
+    default: () => ({}),
+  },
 });
-
 const emit = defineEmits(['update:visible', 'submit']);
 
-// ========== 数据状态 ==========
-const loading = ref(false);
+// ========== 弹窗基础状态 ==========
 const isModalVisible = ref(false);
+const loading = ref(true);
 const activeTab = ref('employeeManagement');
+const isFeedbackVisible = ref(false);
 
-// 员工管理
-interface Skill {
-  id: number;
-  name: string;
-}
-interface Employee {
-  id: number;
-  name: string;
-  type: '兼职' | '正职' | string;
-  skills: Skill[];
-  daysOff: string[];
-  isNew?: boolean;
-  // 用于新增技能的临时状态
-  newSkillId?: null | number;
-}
-const feedbackColumns: TableColumnType[] = [
-  { title: '反馈信息', dataIndex: 'message', key: 'message' },
+// ========== 员工管理页签状态 ==========
+const employeeColumns: TableColumnType[] = [
+  { title: '姓名', dataIndex: 'userName', key: 'userName' },
+  { title: '类型', dataIndex: 'employeeType', key: 'employeeType' },
+  { title: '技能', dataIndex: 'skills', key: 'skills', width: '50%' },
 ];
+const allEmployees = ref<any[]>([]);
+const selectedEmployeeKeys = ref<number[]>([]);
 
-const localEmployees = ref<Employee[]>([]); // 当前排班的员工
-const masterEmployees = ref<Employee[]>([]); // 从API获取的全店员工库
+// ========== TODO: #1 & #2 岗位需求配置页签状态重构 ==========
+const allSkills = ref<any[]>([]);
+const allShifts = ref<any[]>([]); // 存储班次定义
+const requirements = ref<any>({}); // key为日期 'YYYY-MM-DD', value为该日期的需求
+const activeRequirementDay = ref(''); // 当前选中的日期页签
+const enableRestDaySubstitution = ref(true); // #1 新增: 是否休息补替
 
-// 岗位需求
-const allSkills = ref<{ id: number; name: string }[]>([]); // 从API获取
-const localRequirements = reactive({
-  '09:00-18:00': {},
-  '18:00-23:00': {},
-  '09:00-14:00': {},
-  '18:00-22:00': {},
+// #2 新增: 为日期页签生成数据
+const weekDaysForTabs = computed(() => {
+  debugger;
+  if (!props.initialData.initialDate) return [];
+  const startOfWeek = dayjs(props.initialData.initialDate).startOf('week');
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const currentDay = startOfWeek.add(i, 'day');
+    days.push({
+      key: currentDay.format('YYYY-MM-DD'),
+      label: `周${['一', '二', '三', '四', '五', '六', '日'][i]}`,
+    });
+  }
+  return days;
 });
 
-const requirementMeta = {
-  '09:00-18:00': { label: '早班', color: '#e6f7ff' },
-  '09:00-14:00': { label: '早班', color: '#e6f7ff' },
-  '18:00-23:00': { label: '晚班', color: '#fffbe6' },
-  '18:00-22:00': { label: '烊班', color: '#fff1f0' },
-};
-
-// 排班反馈
-const isFeedbackVisible = ref(false);
+// ========== 反馈信息状态 ==========
 const unassignedFeedback = ref([]);
+const feedbackColumns = [
+  { title: '问题描述', dataIndex: 'message', key: 'message' },
+  {
+    title: '类型',
+    dataIndex: 'type',
+    key: 'type',
+    width: 150,
+    customRender: ({ text }) => {
+      let color = 'default';
+      let content = text;
+      switch (text) {
+        case 'MANPOWER_SHORTAGE':
+          color = 'error'; // 红色
+          content = '人力缺口';
+          break;
+        case 'CONSTRAINT_VIOLATION':
+          color = 'warning'; // 橙色
+          content = '规则冲突';
+          break;
+        case 'SYSTEM_WARNING':
+          color = 'processing'; // 蓝色
+          content = '系统警告';
+          break;
+      }
+      // 使用 h 函数渲染 Ant Design Vue 的 Tag 组件
+      return h(Tag, { color: color }, () => content);
+    },
+  },
+];
 
-// ========== API 调用 ==========
-const fetchModalData = async () => {
+// ========== 核心方法 ==========
+const fetchInitialData = async () => {
   if (!props.storeId) return;
   loading.value = true;
   try {
-    // 并行获取员工和技能数据
-    const [employeeRes, skillsRes] = await Promise.all([
-      listUserprofileWithSkills({ storeId: props.storeId }),
-      skillsList(),
+    await Promise.all([
+      fetchEmployees(),
+      fetchRequirementsAndShifts(), // 此方法已重构
     ]);
-
-    // 处理员工数据
-    masterEmployees.value = employeeRes.map((e) => ({
-      id: e.userId,
-      name: e.userName,
-      type: e.employeeType,
-      skills: e.skills ? e.skills.map((s) => ({ id: s.id, name: s.name })) : [],
-      daysOff: [],
-      newSkillId: null,
-    }));
-
-    // 处理技能数据
-    allSkills.value = skillsRes.rows.map((s) => ({ id: s.id, name: s.name }));
-    // 基于获取的技能动态初始化岗位需求对象
-    const skillTemplate = {};
-    for (const skill of allSkills.value) {
-      skillTemplate[skill.name] = 0;
+    // 默认激活本周的第一天
+    if (weekDaysForTabs.value.length > 0) {
+      activeRequirementDay.value = weekDaysForTabs.value[0].key;
     }
-    localRequirements['09:00-18:00'] = {
-      ...skillTemplate,
-      柜台: 1,
-      外场: 1,
-      内场: 1,
-    };
-    localRequirements['18:00-23:00'] = {
-      ...skillTemplate,
-      柜台: 1,
-      外场: 1,
-      内场: 1,
-      洗碗: 1,
-      清洁: 1,
-    };
-    localRequirements['09:00-14:00'] = { ...skillTemplate, 外场: 1 };
-    localRequirements['18:00-22:00'] = { ...skillTemplate, 内场: 1, 洗碗: 1 };
   } catch (error) {
-    message.error('加载排班配置数据失败');
+    message.error('加载排班配置信息失败');
     console.error(error);
   } finally {
     loading.value = false;
   }
 };
 
-// ========== 监听与计算属性 ==========
-watch(
-  () => props.visible,
-  (newValue) => {
-    isModalVisible.value = newValue;
-    if (newValue) {
-      fetchModalData();
-      localEmployees.value = JSON.parse(
-        JSON.stringify(props.employees || []),
-      ).map((emp) => ({
-        ...emp,
-        skills: emp.skills.map((skillName) => {
-          const skillObj = allSkills.value.find((s) => s.name === skillName);
-          return skillObj || { id: -1, name: skillName };
-        }),
-        newSkillId: null,
-      }));
+const fetchEmployees = async () => {
+  const res = await listUserprofileWithSkills({ storeId: props.storeId });
+  allEmployees.value = res.map((emp) => ({
+    ...emp,
+    skillIds: (emp.skills || []).map((s) => s.id), // 提取技能ID数组用于v-model绑定
+  }));
+  selectedEmployeeKeys.value = allEmployees.value.map((e) => e.userId);
+};
+
+// TODO: #2 重构 - 加载每日需求
+const fetchRequirementsAndShifts = async () => {
+  const storeId = props.storeId;
+  const currentStartDate = dayjs(props.initialData.initialDate).startOf('week');
+  const lastWeekStartDate = currentStartDate
+    .subtract(1, 'week')
+    .format('YYYY-MM-DD');
+
+  // 1. 获取基础信息: 技能和班次定义
+  const [skillsRes, shiftsRes] = await Promise.all([
+    skillsList({ storeId }),
+    shiftsAndRestTime({ storeId }),
+  ]);
+  allSkills.value = skillsRes.rows;
+  allShifts.value = shiftsRes || [];
+
+  // 2. 获取数据源: 优先上周数据, 其次是模板数据
+  let dataSource;
+  try {
+    const lastWeekRes = await getWeeklySchedule({
+      storeId,
+      startDate: lastWeekStartDate,
+      endDate: currentStartDate.subtract(1, 'day').format('YYYY-MM-DD'),
+    });
+    debugger;
+    // 检查上周数据是否有效
+    if (lastWeekRes && Object.keys(lastWeekRes.scheduleRows).length > 0) {
+      dataSource = { type: 'last_week', data: lastWeekRes };
+      message.success('已加载上周排班作为默认需求');
+    } else {
+      throw new Error('上周无排班数据');
     }
-  },
-);
+  } catch (e) {
+    console.warn('获取上周排班数据失败, 将使用模板数据:', e);
+    const templateRes = await scheduleRequirementsAllTypeList({ storeId });
+    dataSource = { type: 'template', data: templateRes };
+    message.info('未找到上周排班, 已加载模板作为默认需求');
+  }
 
-const weekDaysOptions = computed(
-  () => props.weekDays?.map((d) => ({ value: d.label, label: d.label })) || [],
-);
+  // 3. 构建每日需求
+  const newRequirements = {};
+  for (const day of weekDaysForTabs.value) {
+    const dateStr = day.key;
+    const newDayReqs = {};
 
-const employeeColumns: TableColumnType[] = [
-  { title: '姓名', dataIndex: 'name', key: 'name', width: 120 },
-  { title: '类型', dataIndex: 'type', key: 'type', width: 80 },
-  { title: '技能', dataIndex: 'skills', key: 'skills' },
-  { title: '本周休息日', dataIndex: 'daysOff', key: 'daysOff', width: 200 },
-  { title: '操作', dataIndex: 'action', key: 'action', width: 100 },
-];
-
-const availableMasterEmployees = computed(() => {
-  const currentIds = new Set(localEmployees.value.map((e) => e.id));
-  return masterEmployees.value.filter((e) => !currentIds.has(e.id));
-});
-
-// ========== 方法 ==========
-const handleCancel = () => {
-  isModalVisible.value = false;
-  emit('update:visible', false);
+    allShifts.value.forEach((shift) => {
+      const timeSlot = `${shift.startTime.substring(0, 5)}-${shift.endTime.substring(0, 5)}`;
+      const reqRow = {
+        shiftId: shift.id,
+        label: shift.name,
+        color: shift.colorCode,
+        skills: {},
+      };
+      allSkills.value.forEach((skill) => {
+        reqRow.skills[skill.name] = 0; // 初始化为0
+      });
+      newDayReqs[timeSlot] = reqRow;
+    });
+    debugger;
+    // 4. 用数据源填充
+    if (dataSource.type === 'template') {
+      const dayOfWeek = dayjs(dateStr).day();
+      // 周一到周五(day 1-5)用平日模板, 周六日(day 6,0)用假日模板
+      const dayTypeKey =
+        dayOfWeek >= 1 && dayOfWeek <= 5 ? 'weekday' : 'holiday';
+      const templateReqs = dataSource.data[dayTypeKey] || [];
+      templateReqs.forEach((req) => {
+        const shift = allShifts.value.find((s) => s.id === req.shiftId);
+        const skill = allSkills.value.find((s) => s.id === req.skillId);
+        if (shift && skill) {
+          const timeSlot = `${shift.startTime.substring(0, 5)}-${shift.endTime.substring(0, 5)}`;
+          if (newDayReqs[timeSlot]) {
+            newDayReqs[timeSlot].skills[skill.name] = req.requiredCount;
+          }
+        }
+      });
+    } else {
+      dataSource.type === 'last_week';
+      const lastWeekDateStr = dayjs(dateStr)
+        .subtract(1, 'week')
+        .format('YYYY-MM-DD');
+      for (const empId in dataSource.data.scheduleRows) {
+        const daySchedules =
+          dataSource.data.scheduleRows[empId][lastWeekDateStr] || [];
+        daySchedules.forEach((schedule) => {
+          const shift = allShifts.value.find((s) => s.id === schedule.shiftId);
+          const skill = allSkills.value.find((s) => s.id === schedule.skillId);
+          if (shift && skill) {
+            const timeSlot = `${shift.startTime.substring(0, 5)}-${shift.endTime.substring(0, 5)}`;
+            if (newDayReqs[timeSlot]) {
+              // 累加每个岗位的需求人数
+              newDayReqs[timeSlot].skills[skill.name] =
+                (newDayReqs[timeSlot].skills[skill.name] || 0) + 1;
+            }
+          }
+        });
+      }
+    }
+    newRequirements[dateStr] = newDayReqs;
+  }
+  requirements.value = newRequirements;
 };
 
-const addEmployeeRow = () => {
-  localEmployees.value.push({
-    id: 0,
-    name: '',
-    type: '兼职',
-    skills: [],
+// "开始排班"
+const handleOk = async () => {
+  if (selectedEmployeeKeys.value.length === 0) {
+    message.warn('请至少选择一名员工参与排班');
+    return;
+  }
+  loading.value = true;
+
+  const employeeConfigs = selectedEmployeeKeys.value.map((key) => ({
+    id: key,
     daysOff: [],
-    isNew: true,
-    newSkillId: null,
-  });
-};
+  }));
 
-const handleEmployeeSelect = (employeeId: number, index: number) => {
-  const selected = masterEmployees.value.find((e) => e.id === employeeId);
-  if (selected) {
-    localEmployees.value[index] = {
-      ...selected,
-      daysOff: [],
-      isNew: false,
-      newSkillId: null,
-    };
+  // TODO: #2 重构需求参数, 以按天为单位提交
+  const requirementsByDay = {};
+  for (const date in requirements.value) {
+    const dayReq = {};
+    const dayReqHasValue = Object.values(requirements.value[date]).some(
+      (shift) =>
+        Object.values((shift as any).skills).some(
+          (count) => (count as number) > 0,
+        ),
+    );
+
+    if (dayReqHasValue) {
+      for (const timeSlot in requirements.value[date]) {
+        const shiftReq = requirements.value[date][timeSlot];
+        const skillReqs = {};
+        let hasValueInTimeSlot = false;
+        for (const skillName in shiftReq.skills) {
+          const count = shiftReq.skills[skillName];
+          if (count > 0) {
+            skillReqs[skillName] = count;
+            hasValueInTimeSlot = true;
+          }
+        }
+        if (hasValueInTimeSlot) {
+          dayReq[timeSlot] = skillReqs;
+        }
+      }
+    }
+    if (Object.keys(dayReq).length > 0) {
+      requirementsByDay[date] = dayReq;
+    }
+  }
+
+  const params = {
+    storeId: props.storeId,
+    startDate: dayjs(props.initialData.initialDate)
+      .startOf('week')
+      .format('YYYY-MM-DD'),
+    endDate: dayjs(props.initialData.initialDate)
+      .endOf('week')
+      .format('YYYY-MM-DD'),
+    schedulingMode: 'AVERAGE',
+    employees: employeeConfigs,
+    requirementsByDay: requirementsByDay, // TODO: #2 传递按天组织的需求
+    enableRestDaySubstitution: enableRestDaySubstitution.value, // TODO: #1 传递新参数
+  };
+
+  try {
+    const res = await generateSchedule(params);
+    if (res.feedbackItems && res.feedbackItems.length >= 0) {
+      unassignedFeedback.value = res.feedbackItems;
+      isFeedbackVisible.value = true;
+    } else {
+      message.success('智能排班成功！');
+    }
+    emit('submit');
+    handleCancel();
+  } catch (error) {
+    message.error('排班失败，请检查配置或联系管理员');
+    console.error('排班API调用失败:', error);
+  } finally {
+    loading.value = false;
   }
 };
 
-const removeEmployee = (id: number) => {
-  localEmployees.value = localEmployees.value.filter((emp) => emp.id !== id);
+const handleCancel = () => {
+  isModalVisible.value = false;
+  emit('update:visible', false);
 };
 
 const handleRemoveSkill = async (employee: Employee, skillToRemove: Skill) => {
@@ -227,13 +342,12 @@ const handleAddSkill = async (employee: Employee) => {
     message.warning('该员工已拥有此技能');
     return;
   }
-
   try {
-    await addUserSkill({ userId: employee.id, skillId: skillToAdd.id });
+    await addUserSkill({ userId: employee.userId, skillId: skillToAdd.id });
     employee.skills.push(skillToAdd);
     employee.newSkillId = null; // 重置选择器
     message.success(
-      `已为员工 [${employee.name}] 添加技能 [${skillToAdd.name}]`,
+      `已为员工 [${employee.userName}] 添加技能 [${skillToAdd.name}]`,
     );
   } catch (error) {
     message.error('添加技能失败');
@@ -246,92 +360,51 @@ const availableSkillsForEmployee = (employee: Employee) => {
   return allSkills.value.filter((s) => !currentSkillIds.has(s.id));
 };
 
-const runSchedulingAlgorithm = async () => {
-  if (!props.weekDays || props.weekDays.length === 0) {
-    message.error('周数据不正确，无法排班');
-    return;
-  }
-  loading.value = true;
-  try {
-    const payload = {
-      storeId: props.storeId,
-      startDate: props.weekDays[0].key,
-      endDate: props.weekDays[6].key,
-      employees: localEmployees.value.map((emp) => ({
-        id: emp.id,
-        daysOff: emp.daysOff,
-      })),
-      requirements: localRequirements,
-    };
-
-    const result = await generateSchedule(payload);
-
-    if (result.feedbackMessages && result.feedbackMessages.length > 0) {
-      // 如果有反馈信息，则展示反馈弹窗
-      unassignedFeedback.value = result.feedbackMessages.map((msg) => ({
-        message: msg,
-        key: msg,
-      }));
-      isFeedbackVisible.value = true;
-      message.warning('排班已完成，但存在一些问题，请查看反馈。');
-    } else {
-      // 如果没有反馈信息，则直接成功
-      message.success('智能排班成功！');
-      emit('submit'); // 通知父组件刷新
-      handleCancel(); // 关闭主弹窗
+// 监听
+watch(
+  () => props.visible,
+  (newVal) => {
+    isModalVisible.value = newVal;
+    if (newVal) {
+      fetchInitialData();
     }
-  } catch (error) {
-    console.error('智能排班失败:', error);
-    message.error('智能排班失败，请检查配置或联系管理员');
-  } finally {
-    loading.value = false;
-  }
-};
+  },
+);
 </script>
 
 <template>
   <a-modal
     v-model:visible="isModalVisible"
-    title="智能排班"
-    width="850px"
+    title="手动排班配置"
+    width="1000px"
+    :confirm-loading="loading"
+    @ok="handleOk"
+    @cancel="handleCancel"
     ok-text="开始排班"
     cancel-text="取消"
-    :confirm-loading="loading"
-    @cancel="handleCancel"
-    @ok="runSchedulingAlgorithm"
   >
     <a-spin :spinning="loading">
-      <a-tabs v-model:active-key="activeTab">
+      <a-tabs v-model:activeKey="activeTab">
+        <!-- 员工管理页签 -->
         <a-tab-pane key="employeeManagement" tab="员工管理">
+          <a-alert
+            message="请选择需要参与本次排班的员工, 并可在此处直接调整员工技能。"
+            type="info"
+            show-icon
+            class="mb-4"
+          />
           <a-table
             :columns="employeeColumns"
-            :data-source="localEmployees"
+            :data-source="allEmployees"
+            :row-key="(record) => record.userId"
             :pagination="false"
-            bordered
             size="small"
+            :row-selection="{
+              selectedRowKeys: selectedEmployeeKeys,
+              onChange: (keys) => (selectedEmployeeKeys = keys),
+            }"
           >
-            <template #bodyCell="{ column, record, index }">
-              <template v-if="column.dataIndex === 'name'">
-                <a-select
-                  v-if="record.isNew"
-                  v-model:value="record.id"
-                  placeholder="请选择员工"
-                  style="width: 100%"
-                  show-search
-                  @change="
-                    (employeeId) => handleEmployeeSelect(employeeId, index)
-                  "
-                >
-                  <a-select-option
-                    v-for="emp in availableMasterEmployees"
-                    :key="emp.id"
-                    :value="emp.id"
-                  >
-                    {{ emp.name }}
-                  </a-select-option>
-                </a-select>
-                <span v-else>{{ record.name }}</span>
-              </template>
+            <template #bodyCell="{ column, record }">
               <template v-if="column.dataIndex === 'skills'">
                 <div
                   style="
@@ -378,87 +451,79 @@ const runSchedulingAlgorithm = async () => {
                   </a-button>
                 </div>
               </template>
-              <template v-if="column.dataIndex === 'daysOff'">
-                <a-select
-                  v-model:value="record.daysOff"
-                  mode="multiple"
-                  placeholder="请选择休息日"
-                  style="width: 100%"
-                  :options="weekDaysOptions"
-                />
-              </template>
-              <template v-if="column.dataIndex === 'action'">
-                <a-space>
-                  <a-button type="link" size="small">查看</a-button>
-                  <a-popconfirm
-                    title="确定删除该员工吗？"
-                    @confirm="removeEmployee(record.id)"
-                  >
-                    <a-button type="link" size="small" danger>删除</a-button>
-                  </a-popconfirm>
-                </a-space>
-              </template>
             </template>
           </a-table>
-          <a-button type="dashed" block class="mt-4" @click="addEmployeeRow">
-            添加员工
-          </a-button>
         </a-tab-pane>
 
-        <a-tab-pane key="requirementsConfig" tab="岗位需求配置">
-          <a-alert
-            message="请在下方表格内配置每日各时段所需人数"
-            type="info"
-            show-icon
-          />
-          <a-card
-            v-for="(req, timeSlot) in localRequirements"
-            :key="timeSlot"
-            class="mt-4"
-            :body-style="{ paddingTop: '16px' }"
-          >
-            <template #title>
+        <!-- TODO: #1 & #2 岗位需求配置页签重构 -->
+        <a-tab-pane key="requirements" tab="岗位需求配置">
+          <a-row justify="space-between" align="middle" class="mb-4">
+            <a-col>
+              <a-alert
+                message="请为本周的每一天配置所需的岗位人数。默认继承上周排班数据，若无则使用模板。"
+                type="info"
+                show-icon
+              />
+            </a-col>
+            <a-col>
+              <!-- #1 新增: 是否休息补替 -->
+              <a-form-item label="是否休息补替" style="margin-bottom: 0">
+                <a-switch v-model:checked="enableRestDaySubstitution" />
+              </a-form-item>
+            </a-col>
+          </a-row>
+
+          <!-- #2 新增: 周一到周日的页签 -->
+          <a-tabs v-model:activeKey="activeRequirementDay" tab-position="left">
+            <a-tab-pane
+              v-for="day in weekDaysForTabs"
+              :key="day.key"
+              :tab="day.label"
+            >
               <div
-                :style="{
-                  backgroundColor: requirementMeta[timeSlot]?.color,
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                }"
+                v-if="activeRequirementDay === day.key"
+                style="max-height: 400px; padding-right: 16px; overflow-y: auto"
               >
-                <a-tag
-                  :color="
-                    requirementMeta[timeSlot]?.color ? undefined : 'default'
-                  "
+                <a-card
+                  v-for="(req, timeSlot) in requirements[day.key]"
+                  :key="timeSlot"
+                  class="mb-4"
+                  size="small"
                 >
-                  {{ requirementMeta[timeSlot]?.label || '时段' }}
-                </a-tag>
-                <span>{{ timeSlot }}</span>
+                  <template #title>
+                    <a-tag :color="req.color || 'default'">{{
+                      req.label || '时段'
+                    }}</a-tag>
+                    <span>{{ timeSlot }}</span>
+                  </template>
+                  <a-row :gutter="16">
+                    <a-col v-for="skill in allSkills" :key="skill.id" :span="6">
+                      <a-form-item :label="skill.name">
+                        <a-input-number
+                          v-model:value="req.skills[skill.name]"
+                          :min="0"
+                          style="width: 100%"
+                        />
+                      </a-form-item>
+                    </a-col>
+                  </a-row>
+                </a-card>
               </div>
-            </template>
-            <a-row :gutter="16">
-              <a-col v-for="skill in allSkills" :key="skill.id" :span="4">
-                <a-form-item :label="skill.name">
-                  <a-input-number
-                    v-model:value="req[skill.name]"
-                    :min="0"
-                    style="width: 100%"
-                  />
-                </a-form-item>
-              </a-col>
-            </a-row>
-          </a-card>
+            </a-tab-pane>
+          </a-tabs>
         </a-tab-pane>
       </a-tabs>
     </a-spin>
   </a-modal>
 
+  <!-- 排班结果反馈弹窗 -->
   <a-modal
     v-model:visible="isFeedbackVisible"
     title="智能排班结果反馈"
     @ok="isFeedbackVisible = false"
   >
     <a-alert
-      message="请检查以下问题并调整您的配置后重试。"
+      message="排班已完成, 但存在以下问题, 建议您调整配置或手动补齐排班。"
       type="warning"
       show-icon
     />
@@ -466,15 +531,14 @@ const runSchedulingAlgorithm = async () => {
       :columns="feedbackColumns"
       :data-source="unassignedFeedback"
       :pagination="false"
-      bordered
-      size="small"
       class="mt-4"
     />
   </a-modal>
 </template>
 
-<style scoped>
-.mt-4 {
-  margin-top: 16px;
+<style scoped lang="less">
+// 可以根据需要添加样式
+:deep(.ant-tabs-left > .ant-tabs-nav) {
+  margin-right: 24px;
 }
 </style>

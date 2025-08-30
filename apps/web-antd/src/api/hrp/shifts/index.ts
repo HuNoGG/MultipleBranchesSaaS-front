@@ -63,7 +63,7 @@ export function shiftsAdd(data: ShiftsForm) {
  * @returns void
  */
 export function saveBasicSettings(data: ShiftsForm) {
-  return requestClient.postWithMsg<void>('/hrp/shifts/saveBasicSettings', data);
+  return requestClient.post<void>('/hrp/shifts/saveBasicSettings', data);
 }
 
 /**
