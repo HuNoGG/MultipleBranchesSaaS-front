@@ -3,7 +3,7 @@ import type { SkillsVO } from '../skills/model';
 
 import type { Availability } from '#/api/hrp/userAvailability/model';
 
-import { onMounted, reactive, ref, watch } from 'vue';
+import { reactive, ref, watch } from 'vue';
 
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
@@ -119,20 +119,27 @@ const removeAvailabilityRow = (key: number) => {
 // ========== 监听 ==========
 watch(
   () => props.visible,
-  (newValue) => {
+  async (newValue) => {
     isModalVisible.value = newValue;
     if (newValue) {
       // 深拷贝传入的员工数据，避免直接修改props
       Object.assign(formState, JSON.parse(JSON.stringify(props.employeeData)));
-      console.log('formState', formState);
+
+      // 加载当前店铺的技能列表
+      try {
+        const data = await skillsList({ storeId: props.storeId });
+        // 筛选当前店铺的技能
+        allSkills.value = data.rows.filter(skill =>
+          skill.storeId === props.storeId || skill.storeId === undefined
+        );
+      } catch (error) {
+        console.error('加载技能列表失败', error);
+        message.error('加载技能列表失败');
+        allSkills.value = [];
+      }
     }
   },
 );
-onMounted(async () => {
-  // TODO: 加载技能列表
-  const data = await skillsList({ storeId: props.storeId });
-  allSkills.value = data.rows;
-});
 </script>
 
 <template>
