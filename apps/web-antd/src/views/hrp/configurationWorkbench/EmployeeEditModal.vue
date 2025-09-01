@@ -107,7 +107,9 @@ const addAvailabilityRow = () => {
 
 const removeAvailabilityRow = (key: number) => {
   if (formState.availableTimes) {
-    const index = formState.availableTimes.findIndex((item) => item.key === key);
+    const index = formState.availableTimes.findIndex(
+      (item) => item.key === key,
+    );
     if (index !== -1) {
       formState.availableTimes.splice(index, 1);
     }
@@ -147,7 +149,10 @@ watch(
         </a-col>
         <a-col :span="12">
           <a-form-item label="员工职位 (正职/兼职)">
-            <a-select v-model:value="formState.employeeType" placeholder="请选择职位">
+            <a-select
+              v-model:value="formState.employeeType"
+              placeholder="请选择职位"
+            >
               <a-select-option value="正职">正职</a-select-option>
               <a-select-option value="兼职">兼职</a-select-option>
             </a-select>
@@ -182,7 +187,6 @@ watch(
             >
               <a-select
                 v-model:value="item.dayOfWeek"
-                mode="multiple"
                 placeholder="选择星期"
                 :options="weekDayOptions"
                 style="width: 250px"
