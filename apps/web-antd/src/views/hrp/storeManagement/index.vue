@@ -27,7 +27,7 @@ import {
   scheduleRequirementsAllTypeList,
 } from '#/api/hrp/scheduleRequirements';
 import { saveBasicSettings, shiftsAndRestTime } from '#/api/hrp/shifts';
-import { skillsAdd, skillsList, skillsUpdate } from '#/api/hrp/skills';
+import {skillsAdd, skillsList, skillsRemove, skillsUpdate} from '#/api/hrp/skills';
 import { storesAdd, storesList, storesUpdate } from '#/api/hrp/stores';
 import { listUserprofileWithSkills } from '#/api/hrp/userProfile';
 
@@ -399,7 +399,7 @@ const handleDeleteSkill = (skill: Skill) => {
     title: `确认删除技能 "${skill.name}"?`,
     content: '删除后, 员工已关联的此技能也会被移除。',
     onOk: () => {
-      // TODO: 调用删除技能的API
+      skillsRemove(skill.id);
       message.success(`技能 "${skill.name}" 已删除`);
       loadSkillList();
     },
