@@ -75,6 +75,11 @@ const handleOk = async () => {
   try {
     // TODO MOCK: 此处应调用更新员工信息的API
     formState.skills = formState.skillList as number[];
+    // 处理上班时间的startTime与endTime
+    formState.availableTimes.forEach((item) => {
+      item.startTime = item.timeRange[0];
+      item.endTime = item.timeRange[1];
+    });
     await saveExtendedInfo(formState);
     console.log('Saving employee data:', formState);
     emit('submit');
@@ -98,7 +103,9 @@ const addAvailabilityRow = () => {
   formState.availableTimes.push({
     key: Date.now(),
     days: [],
-    timeRange: ['09:00', '18:00'],
+    startTime: '09:00:00',
+    endTime: '18:00:00',
+    timeRange: ['09:00:00', '18:00:00'],
   });
 };
 
@@ -181,7 +188,6 @@ onMounted(async () => {
             >
               <a-select
                 v-model:value="item.dayOfWeek"
-                mode="multiple"
                 placeholder="选择星期"
                 :options="weekDayOptions"
                 style="width: 250px"
@@ -189,7 +195,7 @@ onMounted(async () => {
               <a-time-range-picker
                 v-model:value="item.timeRange"
                 format="HH:mm"
-                value-format="HH:mm"
+                value-format="HH:mm:ss"
                 style="margin: 0 8px"
               />
               <a-button
