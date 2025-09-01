@@ -65,7 +65,11 @@ const weekDayOptions = [
 const handleOk = async () => {
   loading.value = true;
   try {
-    // TODO MOCK: 此处应调用更新员工信息的API
+    // 处理上班时间的startTime与endTime
+    formState.availableTimes.forEach((item) => {
+      item.startTime = item.timeRange[0];
+      item.endTime = item.timeRange[1];
+    });
     await saveExtendedInfo(formState);
     console.log('Saving employee data:', formState);
     message.success(`员工 ${formState.userName} 的信息已更新`);
@@ -90,7 +94,9 @@ const addAvailabilityRow = () => {
   formState.availableTimes.push({
     key: Date.now(),
     days: [],
-    timeRange: ['09:00', '18:00'],
+    startTime: '09:00:00',
+    endTime: '18:00:00',
+    timeRange: ['09:00:00', '18:00:00'],
   });
 };
 
@@ -176,7 +182,7 @@ watch(
               <a-time-range-picker
                 v-model:value="item.timeRange"
                 format="HH:mm"
-                value-format="HH:mm"
+                value-format="HH:mm:ss"
                 style="margin: 0 8px"
               />
               <a-button
