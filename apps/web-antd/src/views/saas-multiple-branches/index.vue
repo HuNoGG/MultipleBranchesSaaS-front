@@ -36,6 +36,7 @@ interface ShiftAssignment {
   timeRange: string;
   shiftLabel: string;
   shiftCode?: string;
+  skillId?: string;
   shiftColorCode?: string;
   userName: string;
   status?: string;
@@ -164,12 +165,15 @@ const fetchData = async () => {
                 /* ignore */
               }
             }
+
             return {
               id: shift.id,
               position: shift.skillName,
               timeRange: `${shift.shiftStartTime} - ${shift.shiftEndTime}`,
               shiftLabel: shift.shiftName,
               shiftCode: shift.shiftCode,
+              skillId: shift.skillId,
+              userId: shift.userId,
               shiftColorCode: shift.shiftColorCode,
               isSubstitute: shift.attendanceStatus === '增补',
               userName: finalUserName,

@@ -37,15 +37,14 @@ const fetchSubstitutes = async () => {
   if (!props.modalData) return;
   loading.value = true;
   try {
-    debugger;
-
     const params = {
       storeId: props.modalData.storeId,
       scheduleDate: props.modalData.dayKey,
       skillId: props.modalData.shift.skillId,
       originalUserId: props.modalData.shift.userId,
     };
-    availableSubstitutes.value = await getAvailableSubstitutes(params);
+    const res = await getAvailableSubstitutes(params);
+    availableSubstitutes.value = res;
     // 模拟数据
   } catch {
     message.error('获取可代班员工列表失败');
@@ -57,23 +56,27 @@ const fetchSubstitutes = async () => {
 const handleOk = async () => {
   loading.value = true;
   try {
-    const { shift, employee, dayKey } = props.modalData;
-    let params = {};
-    if (activeTab.value === 'substitute') {
-      if (!substituteEmployeeId.value) {
-        message.warning('请选择一位代班员工');
-        return;
+    if (props.modalData.isPublished) {
+      // 如果是已发布状态，进行相应处理
+      const { shift, employee, dayKey } = props.modalData;
+      let params = {};
+      if (activeTab.value === 'substitute') {
+        if (!substituteEmployeeId.value) {
+          message.warning('请选择一位代班员工');
+          return;
+        }
+        params = {
+          scheduleId: shift.id,
+          originalUserId: employee.id,
+          newUserId: substituteEmployeeId.value,
+          changeType: '替班', // '替班'
+        };
       }
-      params = {
-        scheduleId: shift.id,
-        originalUserId: employee.id,
-        newUserId: substituteEmployeeId.value,
-        changeType: '替班', // '替班'
-      };
+      await scheduleModificationsAdd(params);
+      message.success('班次调整成功');
+      emit('submit');
     }
-    await scheduleModificationsAdd(params);
-    message.success('班次调整成功');
-    emit('submit');
+
     handleCancel();
   } catch {
     message.error('操作失败');
@@ -117,7 +120,7 @@ watch(
       <div v-if="modalData">
         <a-descriptions bordered :column="2">
           <a-descriptions-item label="员工">
-            {{ modalData.employee.name }}
+            {{ modalData.employee.userName }}
           </a-descriptions-item>
           <a-descriptions-item label="日期">
             {{ modalData.date }}
@@ -137,10 +140,10 @@ watch(
                 >
                   <a-select-option
                     v-for="emp in availableSubstitutes"
-                    :key="emp.id"
-                    :value="emp.id"
+                    :key="emp.userId"
+                    :value="emp.userId"
                   >
-                    {{ emp.name }}
+                    {{ emp.userName }}
                   </a-select-option>
                 </a-select>
               </a-form-item>
@@ -152,7 +155,7 @@ watch(
           <template v-else>
             <a-tab-pane key="adjust-draft" tab="修改班次">
               <p>在这里放置修改草稿班次的表单...</p>
-              <a-button danger>清空此班次</a-button>
+              <!-- <a-button danger>清空此班次</a-button> -->
             </a-tab-pane>
           </template>
         </a-tabs>
