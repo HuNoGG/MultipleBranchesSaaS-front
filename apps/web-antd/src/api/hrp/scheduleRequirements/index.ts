@@ -56,10 +56,7 @@ export function scheduleRequirementsAdd(data: ScheduleRequirementsForm) {
  * @returns void
  */
 export function saveDailyRequirements(data: ScheduleRequirementsForm) {
-  return requestClient.postWithMsg<void>(
-    '/hrp/scheduleRequirements/save',
-    data,
-  );
+  return requestClient.post<void>('/hrp/scheduleRequirements/save', data);
 }
 
 /**

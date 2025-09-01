@@ -10,14 +10,11 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 
 import {
   BarChartOutlined,
-  CoffeeOutlined,
-  CopyOutlined,
   DeleteOutlined,
   EditOutlined,
   GoldOutlined,
   HourglassOutlined,
   PlusOutlined,
-  SafetyCertificateOutlined,
   ShopOutlined,
   TeamOutlined,
 } from '@ant-design/icons-vue';
@@ -274,7 +271,7 @@ const requirementColumns = computed<TableColumnType[]>(() => [
   ...allSkills.value.map((skill) => ({
     title: skill.name,
     dataIndex: 'requirements', // 指向一个不存在的字段，因为我们将使用 bodyCell 模板
-    key: skill.id,
+    key: Number(skill.id),
     width: 100,
     align: 'center' as AlignType,
   })),
@@ -616,13 +613,20 @@ const formatSupportStores = (storeIds) => {
     <a-spin :spinning="loading">
       <div v-if="activeStoreId" class="config-main">
         <!-- 权限与高级设定 -->
+
         <a-card class="config-panel">
           <template #title>
             <div class="panel-title">
               <SafetyCertificateOutlined /> 权限与高级设定
             </div>
           </template>
-          <template #extra v-if="userRole === 'admin' && activeStoreId">
+          <a-alert
+            message="尚未开发完成,此处功能待完善"
+            type="info"
+            show-icon
+            class="mb-4"
+          />
+          <!-- <template #extra v-if="userRole === 'admin' && activeStoreId">
             <a-button type="primary" @click="openCopySettingsModal">
               <CopyOutlined /> 复制店铺设定
             </a-button>
@@ -681,7 +685,7 @@ const formatSupportStores = (storeIds) => {
                 保存支援设定
               </a-button>
             </a-tab-pane>
-          </a-tabs>
+          </a-tabs> -->
         </a-card>
         <!-- 基本设定 -->
         <a-card class="config-panel">
@@ -958,7 +962,13 @@ const formatSupportStores = (storeIds) => {
               </a-button>
             </a-tab-pane>
             <a-tab-pane key="special" tab="特殊节日需求">
-              <a-button type="dashed" @click="handleAddSpecialDay" class="mb-4">
+              <a-alert
+                message="特殊节假日的具体日期需要在“店铺事件”中单独设置。「尚未完善」"
+                type="info"
+                show-icon
+                class="mb-4"
+              />
+              <!-- <a-button type="dashed" @click="handleAddSpecialDay" class="mb-4">
                 <PlusOutlined /> 添加特殊日
               </a-button>
               <a-list :data-source="requirements.special" bordered size="small">
@@ -976,18 +986,26 @@ const formatSupportStores = (storeIds) => {
                     </a-button>
                   </template>
                 </a-list-item>
-              </a-list>
+              </a-list> -->
             </a-tab-pane>
           </a-tabs>
         </a-card>
         <!-- 休假与上班时数规则 -->
         <a-row :gutter="16">
           <a-col :md="12" :xs="24">
+            <!-- TODO -->
+
             <a-card class="config-panel">
               <template #title>
                 <div class="panel-title"><CoffeeOutlined /> 休假规则设定</div>
               </template>
-              <a-form :model="rulesSettings.leaveRules" layout="vertical">
+              <a-alert
+                message="尚未开发完成,此处功能待完善"
+                type="info"
+                show-icon
+                class="mb-4"
+              />
+              <!-- <a-form :model="rulesSettings.leaveRules" layout="vertical">
                 <a-form-item label="员工预填期望休假">
                   <a-switch
                     v-model:checked="rulesSettings.leaveRules.allowLeaveRequest"
@@ -1025,17 +1043,25 @@ const formatSupportStores = (storeIds) => {
                     开启后，员工可自行勾选周一至周日的期望休息日。
                   </p>
                 </a-form-item>
-              </a-form>
+              </a-form> -->
             </a-card>
           </a-col>
           <a-col :md="12" :xs="24">
+            <!-- TODO -->
+
             <a-card class="config-panel">
               <template #title>
                 <div class="panel-title">
                   <HourglassOutlined /> 上班时数规则
                 </div>
               </template>
-              <a-tabs>
+              <a-alert
+                message="尚未开发完成,此处功能待完善"
+                type="info"
+                show-icon
+                class="mb-4"
+              />
+              <!-- <a-tabs>
                 <a-tab-pane key="fullTime" tab="全职">
                   <a-form
                     :model="rulesSettings.workingHoursRules.fullTime"
@@ -1108,15 +1134,15 @@ const formatSupportStores = (storeIds) => {
                     </a-form-item>
                   </a-form>
                 </a-tab-pane>
-              </a-tabs>
+              </a-tabs> -->
             </a-card>
           </a-col>
         </a-row>
 
         <div class="save-button-container">
-          <a-button type="primary" size="large" @click="handleSaveRules">
+          <!-- <a-button type="primary" size="large" @click="handleSaveRules">
             保存所有规则设定
-          </a-button>
+          </a-button> -->
         </div>
       </div>
       <a-empty

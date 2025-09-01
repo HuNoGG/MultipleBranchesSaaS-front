@@ -367,8 +367,8 @@ const getCellClass = (day: DaySchedule) => {
           <a-space>
             <a-tag v-if="isDraft" color="blue">草稿状态</a-tag>
             <a-tag v-else color="green">已发布</a-tag>
-            <a-button>导入</a-button>
-            <a-button>另存为模板</a-button>
+            <!-- <a-button>导入</a-button>
+            <a-button>另存为模板</a-button> -->
             <a-button type="dashed" v-if="isDraft" @click="triggerAutoSchedule">
               手动排班
             </a-button>

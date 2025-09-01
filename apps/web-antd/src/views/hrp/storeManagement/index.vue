@@ -611,7 +611,7 @@ const handleSaveRequirements = async () => {
       }),
     );
 
-    message.success('排班需求保存成功');
+    message.success('平日、假日排班需求保存成功');
     // 可选: 保存成功后重新加载一次数据以确保同步
     await loadShiftsAndRequirements();
   } catch (error) {
