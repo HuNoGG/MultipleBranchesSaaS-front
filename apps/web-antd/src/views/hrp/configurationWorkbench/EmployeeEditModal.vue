@@ -20,9 +20,9 @@ interface Store {
 interface Employee {
   id: number;
   userName: string;
-  type: string;
+  employeeType: string; // 修改为 employeeType
   skills: number[];
-  priority: number;
+  priorityScore: number; // 修改为 priorityScore
   availableTimes: Availability[];
   supportStoreIds: number[];
   storeId: number; // 当前员工所属店铺ID
@@ -66,10 +66,15 @@ const handleOk = async () => {
   loading.value = true;
   try {
     // 处理上班时间的startTime与endTime
-    formState.availableTimes.forEach((item) => {
-      item.startTime = item.timeRange[0];
-      item.endTime = item.timeRange[1];
-    });
+    if (formState.availableTimes) {
+      formState.availableTimes.forEach((item: any) => {
+        if (item.timeRange) {
+          item.startTime = item.timeRange[0];
+          item.endTime = item.timeRange[1];
+        }
+      });
+    }
+
     await saveExtendedInfo(formState);
     console.log('Saving employee data:', formState);
     message.success(`员工 ${formState.userName} 的信息已更新`);
@@ -101,9 +106,11 @@ const addAvailabilityRow = () => {
 };
 
 const removeAvailabilityRow = (key: number) => {
-  const index = formState.availableTimes.findIndex((item) => item.key === key);
-  if (index !== -1) {
-    formState.availableTimes.splice(index, 1);
+  if (formState.availableTimes) {
+    const index = formState.availableTimes.findIndex((item) => item.key === key);
+    if (index !== -1) {
+      formState.availableTimes.splice(index, 1);
+    }
   }
 };
 
@@ -114,7 +121,8 @@ watch(
     isModalVisible.value = newValue;
     if (newValue) {
       // 深拷贝传入的员工数据，避免直接修改props
-      Object.assign(formState, JSON.parse(JSON.stringify(props.employeeData)));
+      const employeeData = JSON.parse(JSON.stringify(props.employeeData));
+      Object.assign(formState, employeeData);
       console.log('formState', formState);
     }
   },
@@ -124,7 +132,7 @@ watch(
 <template>
   <a-modal
     v-model:visible="isModalVisible"
-    :title="`编辑员工属性 - ${formState.name}`"
+    :title="`编辑员工属性 - ${formState.userName}`"
     width="700px"
     :confirm-loading="loading"
     @ok="handleOk"
@@ -139,7 +147,7 @@ watch(
         </a-col>
         <a-col :span="12">
           <a-form-item label="员工职位 (正职/兼职)">
-            <a-select v-model:value="formState.type" placeholder="请选择职位">
+            <a-select v-model:value="formState.employeeType" placeholder="请选择职位">
               <a-select-option value="正职">正职</a-select-option>
               <a-select-option value="兼职">兼职</a-select-option>
             </a-select>
@@ -158,7 +166,7 @@ watch(
         <a-col :span="12">
           <a-form-item label="优先分数 (越高越优先)">
             <a-input-number
-              v-model:value="formState.priority"
+              v-model:value="formState.priorityScore"
               :min="0"
               :max="100"
               style="width: 100%"
@@ -169,7 +177,7 @@ watch(
           <a-form-item label="可上班时段">
             <div
               v-for="item in formState.availableTimes"
-              :key="item.id"
+              :key="item.key || item.id"
               class="availability-row"
             >
               <a-select
