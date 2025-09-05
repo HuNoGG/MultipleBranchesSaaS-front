@@ -14,6 +14,8 @@ import { listUserprofileWithSkills } from '#/api/hrp/userProfile';
 // TODO: #1 引入更新用户技能的API
 import { addUserSkill, removeUserSkill } from '#/api/hrp/userSkills';
 import { h } from 'vue';
+import { useDraggable } from '@vueuse/core';
+import { watchEffect } from 'vue';
 
 // ========== Props and Emits ==========
 const props = defineProps({
@@ -370,19 +372,62 @@ watch(
     }
   },
 );
+const modalRef = ref<HTMLElement>(null);
+const startX = ref<number>(0);
+const startY = ref<number>(0);
+const startedDrag = ref(false);
+const transformX = ref(0);
+const transformY = ref(0);
+const preTransformX = ref(0);
+const preTransformY = ref(0);
+const dragRect = ref({ left: 0, right: 0, top: 0, bottom: 0 });
+const { x, y, isDragging } = useDraggable(modalRef);
+watch([x, y], () => {
+  if (!startedDrag.value) {
+    startX.value = x.value;
+    startY.value = y.value;
+    const bodyRect = document.body.getBoundingClientRect();
+    const titleRect = modalRef.value.getBoundingClientRect();
+    dragRect.value.right = bodyRect.width - titleRect.width;
+    dragRect.value.bottom = bodyRect.height - titleRect.height;
+    preTransformX.value = transformX.value;
+    preTransformY.value = transformY.value;
+  }
+  startedDrag.value = true;
+});
+watch(isDragging, () => {
+  if (!isDragging) {
+    startedDrag.value = false;
+  }
+});
+
+watchEffect(() => {
+  if (startedDrag.value) {
+    transformX.value =
+      preTransformX.value +
+      Math.min(Math.max(dragRect.value.left, x.value), dragRect.value.right) -
+      startX.value;
+    transformY.value =
+      preTransformY.value +
+      Math.min(Math.max(dragRect.value.top, y.value), dragRect.value.bottom) -
+      startY.value;
+  }
+});
 </script>
 
 <template>
   <a-modal
     v-model:visible="isModalVisible"
-    title="手动排班配置"
-    width="1000px"
+    width="1500px"
     :confirm-loading="loading"
     @ok="handleOk"
     @cancel="handleCancel"
     ok-text="开始排班"
     cancel-text="取消"
   >
+    <template #title>
+      <div ref="modalRef" style="width: 100%; cursor: move">手动排班配置</div>
+    </template>
     <a-spin :spinning="loading">
       <a-tabs v-model:activeKey="activeTab">
         <!-- 员工管理页签 -->

@@ -35,13 +35,17 @@ interface ShiftAssignment {
   position: string;
   timeRange: string;
   shiftLabel: string;
-  shiftCode?: string;
-  skillId?: string;
-  shiftColorCode?: string;
+  colorCode?: string;
   userName: string;
-  status?: string;
-  // TODO: 新增 attendanceStatus 字段
   attendanceStatus?: '忘记打卡' | '缺勤' | '迟到' | string;
+  startTime?: string;
+  endTime?: string;
+  // 【核心修改点】: 添加 remark 字段，用于存储额外信息
+  remark?: string;
+  // 【核心修改点】: 添加一个计算属性，用于解析 remark
+  substitutionInfo?: {
+    substitutedUserName: string;
+  };
 }
 interface DaySchedule {
   date: string;
@@ -155,29 +159,42 @@ const fetchData = async () => {
           date: dateStr,
           highestAttendanceIssue: highestIssue, // 保存考勤状态
           shifts: shiftsFromApi.map((shift) => {
-            let finalUserName = shift.userName || emp.userName;
+            const finalUserName = shift.userName || emp.userName;
+            const timeRange =
+              shift.startTime && shift.endTime
+                ? `${shift.startTime.slice(0, 5)} - ${shift.endTime.slice(0, 5)}`
+                : '时间未知';
+            let substitutionInfo;
             if (shift.remark) {
               try {
                 const remarkData = JSON.parse(shift.remark);
-                if (remarkData.employeeName)
-                  finalUserName = remarkData.employeeName;
+                if (remarkData.type === 'BREAK_COVERAGE') {
+                  substitutionInfo = {
+                    substitutedUserName:
+                      remarkData.substitutedUserName || '未知员工',
+                  };
+                }
               } catch {
-                /* ignore */
+                console.error('解析 remark 失败', shift.remark);
               }
             }
 
             return {
               id: shift.id,
-              position: shift.skillName,
-              timeRange: `${shift.shiftStartTime} - ${shift.shiftEndTime}`,
+              positionSkill: shift.skillName,
+              positionShift: shift.shiftName,
+              timeRange,
               shiftLabel: shift.shiftName,
               shiftCode: shift.shiftCode,
               skillId: shift.skillId,
               userId: shift.userId,
-              shiftColorCode: shift.shiftColorCode,
+              colorCode: shift.colorCode,
               isSubstitute: shift.attendanceStatus === '增补',
               userName: finalUserName,
               attendanceStatus: shift.attendanceStatus, // 传递考勤状态
+              startTime: shift.startTime, // 保留原始数据
+              endTime: shift.endTime, // 保留原始数据
+              substitutionInfo, // 传递替换信息
             };
           }),
           isRestDay: shiftsFromApi.length === 0,
@@ -298,36 +315,45 @@ const onDragEnd = (event, employeeId) => {
 
 // ========== 样式计算逻辑 ==========
 const getShiftStyle = (shift: ShiftAssignment, employeeType: string) => {
-  // #1 历史数据中 "迟到" 状态的卡片显示为红色
+  // 优先级 1: 考勤异常状态覆盖所有颜色
   if (!isDraft.value && shift.attendanceStatus === '迟到') {
     return { backgroundColor: '#f5222d', borderColor: '#a8071a' };
   }
 
-  // #3 "兼职" 员工的班次显示为深橙色
+  // 优先级 2: "兼职" 员工的班次特殊处理
   if (employeeType === '兼职') {
+    // 【核心修改点】: 如果是替班 (substitutionInfo 存在)，则使用后端提供的特殊颜色
+    if (shift.substitutionInfo && shift.colorCode) {
+      return {
+        backgroundColor: shift.colorCode, // 后端为替班设置的颜色 (例如: #B39DDB)
+        borderColor: `color-mix(in srgb, ${shift.colorCode} 70%, #000 30%)`,
+      };
+    }
+    // 如果是兼职的普通班次，则显示深橙色
     return { backgroundColor: '#D97E00', borderColor: '#B36600' };
   }
 
-  if (shift.shiftColorCode && shift.shiftColorCode !== '#e6f7ff') {
+  // 优先级 3: (全职) 优先使用后端返回的颜色
+  if (shift.colorCode) {
     return {
-      backgroundColor: `color-mix(in srgb, ${shift.shiftColorCode} 90%, #000 10%)`,
-      borderColor: `color-mix(in srgb, ${shift.shiftColorCode} 60%, #000 40%)`,
+      backgroundColor: shift.colorCode,
+      borderColor: `color-mix(in srgb, ${shift.colorCode} 70%, #000 30%)`,
     };
   }
-  switch (shift.shiftCode) {
-    case '全': {
-      return { backgroundColor: '#369EFF', borderColor: '#006DFF' };
-    }
-    case '早': {
-      return { backgroundColor: '#00C29A', borderColor: '#00A37F' };
-    }
-    case '晚': {
-      return { backgroundColor: '#FFB800', borderColor: '#D99800' };
-    }
-    default: {
-      return { backgroundColor: '#86909c', borderColor: '#4e5969' };
-    }
+
+  // 优先级 4: 如果后端没有颜色，使用旧的基于班次名称的逻辑作为后备
+  if (shift.shiftLabel?.includes('全')) {
+    return { backgroundColor: '#369EFF', borderColor: '#006DFF' };
   }
+  if (shift.shiftLabel?.includes('早')) {
+    return { backgroundColor: '#00C29A', borderColor: '#00A37F' };
+  }
+  if (shift.shiftLabel?.includes('晚')) {
+    return { backgroundColor: '#FFB800', borderColor: '#D99800' };
+  }
+
+  // 默认颜色
+  return { backgroundColor: '#86909c', borderColor: '#4e5969' };
 };
 
 const getCellClass = (day: DaySchedule) => {
@@ -346,7 +372,6 @@ const getCellClass = (day: DaySchedule) => {
   }
 };
 </script>
-
 <template>
   <div class="schedule-page-container">
     <a-card class="header-card" :bordered="false">
@@ -371,8 +396,6 @@ const getCellClass = (day: DaySchedule) => {
           <a-space>
             <a-tag v-if="isDraft" color="blue">草稿状态</a-tag>
             <a-tag v-else color="green">已发布</a-tag>
-            <!-- <a-button>导入</a-button>
-            <a-button>另存为模板</a-button> -->
             <a-button type="dashed" v-if="isDraft" @click="triggerAutoSchedule">
               手动排班
             </a-button>
@@ -436,7 +459,6 @@ const getCellClass = (day: DaySchedule) => {
                   "
                   class="corner-flag"
                 ></div>
-
                 <draggable
                   :list="(employeeRow[col.key] as DaySchedule).shifts"
                   :group="{ name: `schedule-group-${employeeRow.employee.id}` }"
@@ -461,10 +483,19 @@ const getCellClass = (day: DaySchedule) => {
                       :data-date="col.key"
                     >
                       <a-tooltip
-                        :title="shift.isSubstitute ? `为他人替班` : ''"
+                        :title="
+                          shift.substitutionInfo
+                            ? `为 ${shift.substitutionInfo.substitutedUserName} 替班`
+                            : ''
+                        "
                       >
                         <div class="shift-card-header">
-                          <span class="position">{{ shift.position }}</span>
+                          <span class="position">{{
+                            shift.positionSkill
+                          }}</span>
+                          <span class="position">{{
+                            shift.positionShift
+                          }}</span>
                           <a-tag
                             v-if="shift.attendanceStatus"
                             color="orange"
@@ -482,14 +513,12 @@ const getCellClass = (day: DaySchedule) => {
                     </div>
                   </template>
                 </draggable>
-
                 <div
                   v-if="(employeeRow[col.key] as DaySchedule).isRestDay"
                   class="day-off"
                 >
                   休
                 </div>
-
                 <a-button
                   v-if="
                     !(employeeRow[col.key] as DaySchedule).isRestDay &&
@@ -545,7 +574,6 @@ const getCellClass = (day: DaySchedule) => {
     />
   </div>
 </template>
-
 <style lang="less" scoped>
 .schedule-page-container {
   padding: 16px;
