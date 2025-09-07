@@ -1,182 +1,241 @@
 <script setup lang="ts">
-import type { VbenFormProps } from '@vben/common-ui';
+import { ref, onMounted, computed } from 'vue';
+import { Page } from '@vben/common-ui';
+import { Spin, Button, message } from 'ant-design-vue';
+import dayjs from 'dayjs';
+import weekOfYear from 'dayjs/plugin/weekOfYear';
 
-import type { VxeGridProps } from '#/adapter/vxe-table';
-import type { ScheduleRequirementsForm } from '#/api/hrp/scheduleRequirements/model';
-
-import { Page, useVbenModal } from '@vben/common-ui';
-import { getVxePopupContainer } from '@vben/utils';
-
-import { Modal, Popconfirm, Space } from 'ant-design-vue';
-
-import { useVbenVxeGrid, vxeCheckboxChecked } from '#/adapter/vxe-table';
 import {
-  scheduleRequirementsExport,
   scheduleRequirementsList,
+  scheduleRequirementsAdd,
+  scheduleRequirementsUpdate,
   scheduleRequirementsRemove,
 } from '#/api/hrp/scheduleRequirements';
-import { commonDownloadExcel } from '#/utils/file/download';
+import { skillsList } from '#/api/hrp/skills';
+import { shiftsList } from '#/api/hrp/shifts';
 
-import { columns, querySchema } from './data';
-import scheduleRequirementsModal from './scheduleRequirements-modal.vue';
+import type { ScheduleRequirement } from '#/api/hrp/scheduleRequirements/model';
+import type { Skill } from '#/api/hrp/skills/model';
+import type { Shift } from '#/api/hrp/shifts/model';
 
-const formOptions: VbenFormProps = {
-  commonConfig: {
-    labelWidth: 80,
-    componentProps: {
-      allowClear: true,
-    },
-  },
-  schema: querySchema(),
-  wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
-  // 处理区间选择器RangePicker时间格式 将一个字段映射为两个字段 搜索/导出会用到
-  // 不需要直接删除
-  // fieldMappingTime: [
-  //  [
-  //    'createTime',
-  //    ['params[beginTime]', 'params[endTime]'],
-  //    ['YYYY-MM-DD 00:00:00', 'YYYY-MM-DD 23:59:59'],
-  //  ],
-  // ],
+dayjs.extend(weekOfYear);
+
+const loading = ref(true);
+const skills = ref<Skill[]>([]);
+const shifts = ref<Shift[]>([]);
+const requirements = ref<ScheduleRequirement[]>([]);
+const storeId = ref('1'); // Assuming a default store ID for now
+
+const weekDates = ref<string[]>([]);
+const gridData = ref<Record<string, Record<string, Record<string, number | null>>>>({});
+
+const getWeekDateRange = () => {
+  const startOfWeek = dayjs().startOf('week');
+  const dates = [];
+  for (let i = 0; i < 7; i++) {
+    dates.push(startOfWeek.add(i, 'day').format('YYYY-MM-DD'));
+  }
+  return dates;
 };
 
-const gridOptions: VxeGridProps = {
-  checkboxConfig: {
-    // 高亮
-    highlight: true,
-    // 翻页时保留选中状态
-    reserve: true,
-    // 点击行选中
-    // trigger: 'row',
-  },
-  // 需要使用i18n注意这里要改成getter形式 否则切换语言不会刷新
-  // columns: columns(),
-  columns,
-  height: 'auto',
-  keepSource: true,
-  pagerConfig: {},
-  proxyConfig: {
-    ajax: {
-      query: async ({ page }, formValues = {}) => {
-        return await scheduleRequirementsList({
-          pageNum: page.currentPage,
-          pageSize: page.pageSize,
-          ...formValues,
-        });
-      },
-    },
-  },
-  rowConfig: {
-    keyField: 'id',
-  },
-  // 表格全局唯一表示 保存列配置需要用到
-  id: 'hrp-scheduleRequirements-index',
-};
-
-const [BasicTable, tableApi] = useVbenVxeGrid({
-  formOptions,
-  gridOptions,
-});
-
-const [ScheduleRequirementsModal, modalApi] = useVbenModal({
-  connectedComponent: scheduleRequirementsModal,
-});
-
-function handleAdd() {
-  modalApi.setData({});
-  modalApi.open();
-}
-
-async function handleEdit(row: Required<ScheduleRequirementsForm>) {
-  modalApi.setData({ id: row.id });
-  modalApi.open();
-}
-
-async function handleDelete(row: Required<ScheduleRequirementsForm>) {
-  await scheduleRequirementsRemove(row.id);
-  await tableApi.query();
-}
-
-function handleMultiDelete() {
-  const rows = tableApi.grid.getCheckboxRecords();
-  const ids = rows.map((row: Required<ScheduleRequirementsForm>) => row.id);
-  Modal.confirm({
-    title: '提示',
-    okType: 'danger',
-    content: `确认删除选中的${ids.length}条记录吗？`,
-    onOk: async () => {
-      await scheduleRequirementsRemove(ids);
-      await tableApi.query();
-    },
+const processRequirements = (
+  skills: Skill[],
+  shifts: Shift[],
+  requirements: ScheduleRequirement[],
+  dates: string[],
+) => {
+  const data: Record<string, Record<string, Record<string, any>>> = {};
+  skills.forEach(skill => {
+    data[skill.id] = {};
+    dates.forEach(date => {
+      data[skill.id][date] = {};
+      shifts.forEach(shift => {
+        const req = requirements.find(
+          r => r.skillId === skill.id && r.date === date && r.shiftId === shift.id,
+        );
+        data[skill.id][date][shift.id] = {
+          count: req ? req.requiredCount : null,
+          original: req || null, // Keep track of the original requirement object
+        };
+      });
+    });
   });
-}
+  gridData.value = data;
+};
 
-function handleDownloadExcel() {
-  commonDownloadExcel(
-    scheduleRequirementsExport,
-    '每日人力需求数据',
-    tableApi.formApi.form.values,
-    {
-      fieldMappingTime: formOptions.fieldMappingTime,
-    },
-  );
-}
+const handleSave = async () => {
+  loading.value = true;
+  const promises = [];
+
+  for (const skillId in gridData.value) {
+    for (const date in gridData.value[skillId]) {
+      for (const shiftId in gridData.value[skillId][date]) {
+        const cell = gridData.value[skillId][date][shiftId];
+        const newCount = cell.count;
+        const originalReq = cell.original;
+
+        const hasNewValue = newCount !== null && newCount > 0;
+        const hadOldValue = originalReq !== null;
+
+        if (hasNewValue && !hadOldValue) {
+          // Add new
+          promises.push(scheduleRequirementsAdd({ skillId, date, shiftId, requiredCount: newCount, storeId: storeId.value }));
+        } else if (hasNewValue && hadOldValue && newCount !== originalReq.requiredCount) {
+          // Update existing
+          promises.push(scheduleRequirementsUpdate({ ...originalReq, requiredCount: newCount }));
+        } else if (!hasNewValue && hadOldValue) {
+          // Delete existing
+          promises.push(scheduleRequirementsRemove(originalReq.id));
+        }
+      }
+    }
+  }
+
+  try {
+    await Promise.all(promises);
+    message.success('更改已保存');
+    await fetchData(); // Refresh data from server
+  } catch (error) {
+    console.error('Failed to save changes:', error);
+    message.error('保存失败');
+  } finally {
+    loading.value = false;
+  }
+};
+
+const fetchData = async () => {
+  loading.value = true;
+  try {
+    weekDates.value = getWeekDateRange();
+    const [skillsData, shiftsData, requirementsData] = await Promise.all([
+      skillsList({ storeId: storeId.value }),
+      shiftsList({ storeId: storeId.value }),
+      scheduleRequirementsList({
+        storeId: storeId.value,
+        beginDate: weekDates.value[0],
+        endDate: weekDates.value[6],
+        pageSize: 999, // Fetch all for the week
+      }),
+    ]);
+
+    skills.value = skillsData.rows;
+    shifts.value = shiftsData.rows;
+    requirements.value = requirementsData.rows;
+
+    processRequirements(skills.value, shifts.value, requirements.value, weekDates.value);
+
+  } catch (error) {
+    console.error('Failed to fetch schedule requirement data:', error);
+  } finally {
+    loading.value = false;
+  }
+};
+
+onMounted(() => {
+  fetchData();
+});
+
 </script>
 
 <template>
   <Page :auto-content-height="true">
-    <BasicTable table-title="每日人力需求列表">
-      <template #toolbar-tools>
-        <Space>
-          <a-button
-            v-access:code="['hrp:scheduleRequirements:export']"
-            @click="handleDownloadExcel"
-          >
-            {{ $t('pages.common.export') }}
-          </a-button>
-          <a-button
-            :disabled="!vxeCheckboxChecked(tableApi)"
-            danger
-            type="primary"
-            v-access:code="['hrp:scheduleRequirements:remove']"
-            @click="handleMultiDelete"
-          >
-            {{ $t('pages.common.delete') }}
-          </a-button>
-          <a-button
-            type="primary"
-            v-access:code="['hrp:scheduleRequirements:add']"
-            @click="handleAdd"
-          >
-            {{ $t('pages.common.add') }}
-          </a-button>
-        </Space>
-      </template>
-      <template #action="{ row }">
-        <Space>
-          <ghost-button
-            v-access:code="['hrp:scheduleRequirements:edit']"
-            @click.stop="handleEdit(row)"
-          >
-            {{ $t('pages.common.edit') }}
-          </ghost-button>
-          <Popconfirm
-            :get-popup-container="getVxePopupContainer"
-            placement="left"
-            title="确认删除？"
-            @confirm="handleDelete(row)"
-          >
-            <ghost-button
-              danger
-              v-access:code="['hrp:scheduleRequirements:remove']"
-              @click.stop=""
-            >
-              {{ $t('pages.common.delete') }}
-            </ghost-button>
-          </Popconfirm>
-        </Space>
-      </template>
-    </BasicTable>
-    <ScheduleRequirementsModal @reload="tableApi.query()" />
+    <template #header-extra>
+      <Button type="primary" :loading="loading" @click="handleSave">保存更改</Button>
+    </template>
+    <Spin :spinning="loading">
+      <div v-if="!loading" class="p-4">
+        <table class="schedule-grid">
+          <thead>
+            <tr>
+              <th class="skill-header">技能/岗位</th>
+              <th v-for="date in weekDates" :key="date" class="date-header">
+                {{ dayjs(date).format('ddd') }} <br>
+                {{ dayjs(date).format('MM-DD') }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="skill in skills" :key="skill.id">
+              <td class="skill-cell">{{ skill.name }}</td>
+              <td v-for="date in weekDates" :key="date" class="data-cell">
+                <div class="shift-wrapper">
+                  <div v-for="shift in shifts" :key="shift.id" class="shift-cell">
+                    <span class="shift-name">{{ shift.name }}</span>
+                    <a-input-number
+                      v-if="gridData[skill.id] && gridData[skill.id][date]"
+                      v-model:value="gridData[skill.id][date][shift.id].count"
+                      :min="0"
+                      :max="99"
+                      placeholder="-"
+                      class="shift-input"
+                    />
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </Spin>
   </Page>
 </template>
+
+<style scoped>
+.schedule-grid {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.schedule-grid th,
+.schedule-grid td {
+  border: 1px solid #e8e8e8;
+  padding: 8px;
+  text-align: center;
+}
+
+.skill-header {
+  width: 150px;
+  background-color: #fafafa;
+}
+
+.date-header {
+  background-color: #fafafa;
+}
+
+.skill-cell {
+  background-color: #fafafa;
+  font-weight: bold;
+}
+
+.data-cell {
+  padding: 0;
+  vertical-align: top;
+}
+
+.shift-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.shift-cell {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.shift-cell:last-child {
+  border-bottom: none;
+}
+
+.shift-name {
+  font-size: 12px;
+}
+
+.shift-input {
+  width: 60px;
+}
+</style>

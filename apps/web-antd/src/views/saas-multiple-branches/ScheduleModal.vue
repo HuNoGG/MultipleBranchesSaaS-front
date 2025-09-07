@@ -6,16 +6,16 @@ import { message, Modal, Tag } from 'ant-design-vue';
 import dayjs from 'dayjs';
 
 // TODO: 引入所有需要的API
-import { generateSchedule, getWeeklySchedule } from '#/api/hrp/schedules'; // 引入getWeeklySchedule获取上周数据
+import { generateSchedule, getWeeklySchedule } from '#/api/hrp/schedules';
 import { scheduleRequirementsAllTypeList } from '#/api/hrp/scheduleRequirements';
 import { shiftsAndRestTime } from '#/api/hrp/shifts';
 import { skillsList } from '#/api/hrp/skills';
 import { listUserprofileWithSkills } from '#/api/hrp/userProfile';
-// TODO: #1 引入更新用户技能的API
-import { addUserSkill, removeUserSkill } from '#/api/hrp/userSkills';
 import { h } from 'vue';
 import { useDraggable } from '@vueuse/core';
 import { watchEffect } from 'vue';
+import EmployeeEditModal from '../hrp/configurationWorkbench/EmployeeEditModal.vue';
+import { useModal } from '@vben/common-ui';
 
 // ========== Props and Emits ==========
 const props = defineProps({
@@ -38,10 +38,21 @@ const activeTab = ref('employeeManagement');
 const isFeedbackVisible = ref(false);
 
 // ========== 员工管理页签状态 ==========
+const [employeeEditModal, openEmployeeEditModal] = useModal();
+
+const handleEditEmployee = (employee) => {
+  openEmployeeEditModal.open({
+    employeeData: employee,
+    allSkills: allSkills.value,
+    // 如果需要，可以传递 allStores
+  });
+};
+
 const employeeColumns: TableColumnType[] = [
   { title: '姓名', dataIndex: 'userName', key: 'userName' },
   { title: '类型', dataIndex: 'employeeType', key: 'employeeType' },
-  { title: '技能', dataIndex: 'skills', key: 'skills', width: '50%' },
+  { title: '技能', dataIndex: 'userSkills', key: 'userSkills', width: '40%' },
+  { title: '操作', key: 'action', width: '10%' },
 ];
 const allEmployees = ref<any[]>([]);
 const selectedEmployeeKeys = ref<number[]>([]);
@@ -317,50 +328,6 @@ const handleCancel = () => {
   emit('update:visible', false);
 };
 
-const handleRemoveSkill = async (employee: Employee, skillToRemove: Skill) => {
-  try {
-    await removeUserSkill({ userId: employee.id, skillId: skillToRemove.id });
-    employee.skills = employee.skills.filter(
-      (skill) => skill.id !== skillToRemove.id,
-    );
-    message.success(
-      `已删除员工 [${employee.name}] 的技能 [${skillToRemove.name}]`,
-    );
-  } catch (error) {
-    message.error('删除技能失败');
-    console.error('删除技能失败:', error);
-  }
-};
-
-const handleAddSkill = async (employee: Employee) => {
-  if (!employee.newSkillId) {
-    message.warning('请选择要添加的技能');
-    return;
-  }
-  const skillToAdd = allSkills.value.find((s) => s.id === employee.newSkillId);
-  if (!skillToAdd) return;
-
-  if (employee.skills.some((s) => s.id === skillToAdd.id)) {
-    message.warning('该员工已拥有此技能');
-    return;
-  }
-  try {
-    await addUserSkill({ userId: employee.userId, skillId: skillToAdd.id });
-    employee.skills.push(skillToAdd);
-    employee.newSkillId = null; // 重置选择器
-    message.success(
-      `已为员工 [${employee.userName}] 添加技能 [${skillToAdd.name}]`,
-    );
-  } catch (error) {
-    message.error('添加技能失败');
-    console.error('添加技能失败:', error);
-  }
-};
-
-const availableSkillsForEmployee = (employee: Employee) => {
-  const currentSkillIds = new Set(employee.skills.map((s) => s.id));
-  return allSkills.value.filter((s) => !currentSkillIds.has(s.id));
-};
 
 // 监听
 watch(
@@ -450,51 +417,19 @@ watchEffect(() => {
             }"
           >
             <template #bodyCell="{ column, record }">
-              <template v-if="column.dataIndex === 'skills'">
-                <div
-                  style="
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 4px;
-                    align-items: center;
-                  "
-                >
+              <template v-if="column.dataIndex === 'userSkills'">
+                <div style="display: flex; flex-wrap: wrap; gap: 4px;">
                   <a-tag
-                    v-for="skill in record.skills"
-                    :key="skill.id"
+                    v-for="skill in record.userSkills"
+                    :key="skill.skillId"
                     color="blue"
-                    closable
-                    @close.prevent="handleRemoveSkill(record, skill)"
                   >
-                    {{ skill.name }}
+                    {{ allSkills.find(s => s.id === skill.skillId)?.name }} ({{ skill.priority }})
                   </a-tag>
-                  <a-select
-                    v-if="
-                      !record.isNew &&
-                      availableSkillsForEmployee(record).length > 0
-                    "
-                    v-model:value="record.newSkillId"
-                    size="small"
-                    style="width: 100px"
-                    placeholder="新增技能"
-                  >
-                    <a-select-option
-                      v-for="skill in availableSkillsForEmployee(record)"
-                      :key="skill.id"
-                      :value="skill.id"
-                    >
-                      {{ skill.name }}
-                    </a-select-option>
-                  </a-select>
-                  <a-button
-                    v-if="!record.isNew && record.newSkillId"
-                    type="primary"
-                    size="small"
-                    @click="handleAddSkill(record)"
-                  >
-                    添加
-                  </a-button>
                 </div>
+              </template>
+              <template v-if="column.key === 'action'">
+                <a-button type="link" @click="handleEditEmployee(record)">编辑</a-button>
               </template>
             </template>
           </a-table>
@@ -579,6 +514,8 @@ watchEffect(() => {
       class="mt-4"
     />
   </a-modal>
+
+  <EmployeeEditModal @register="employeeEditModal" @submit="fetchEmployees" />
 </template>
 
 <style scoped lang="less">

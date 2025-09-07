@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Availability } from '#/api/hrp/userAvailability/model';
+import type { UserSkillsForm } from '#/api/hrp/userSkills/model.d.ts';
 
 import { reactive, ref, watch } from 'vue';
 
@@ -20,12 +21,12 @@ interface Store {
 interface Employee {
   id: number;
   userName: string;
-  employeeType: string; // 修改为 employeeType
-  skills: number[];
-  priorityScore: number; // 修改为 priorityScore
+  employeeType: string;
+  userSkills: UserSkillsForm[]; // 修改
   availableTimes: Availability[];
   supportStoreIds: number[];
-  storeId: number; // 当前员工所属店铺ID
+  storeId: number;
+  restDays?: number[]; // 新增
 }
 
 // ========== Props and Emits ==========
@@ -65,7 +66,6 @@ const weekDayOptions = [
 const handleOk = async () => {
   loading.value = true;
   try {
-    // 处理上班时间的startTime与endTime
     if (formState.availableTimes) {
       formState.availableTimes.forEach((item: any) => {
         if (item.timeRange) {
@@ -74,9 +74,12 @@ const handleOk = async () => {
         }
       });
     }
-
+    if (formState.userSkills) {
+      formState.userSkills.forEach(skill => {
+        skill.userId = formState.id;
+      });
+    }
     await saveExtendedInfo(formState);
-    console.log('Saving employee data:', formState);
     message.success(`员工 ${formState.userName} 的信息已更新`);
     emit('submit');
     handleCancel();
@@ -98,7 +101,7 @@ const addAvailabilityRow = () => {
   }
   formState.availableTimes.push({
     key: Date.now(),
-    days: [],
+    dayOfWeek: undefined,
     startTime: '09:00:00',
     endTime: '18:00:00',
     timeRange: ['09:00:00', '18:00:00'],
@@ -107,12 +110,28 @@ const addAvailabilityRow = () => {
 
 const removeAvailabilityRow = (key: number) => {
   if (formState.availableTimes) {
-    const index = formState.availableTimes.findIndex(
-      (item) => item.key === key,
-    );
+    const index = formState.availableTimes.findIndex((item) => item.key === key);
     if (index !== -1) {
       formState.availableTimes.splice(index, 1);
     }
+  }
+};
+
+const addSkillRow = () => {
+  if (!formState.userSkills) {
+    formState.userSkills = [];
+  }
+  formState.userSkills.push({
+    key: Date.now(),
+    skillId: undefined,
+    priority: 0,
+  });
+};
+
+const removeSkillRow = (key: number) => {
+  const index = formState.userSkills.findIndex((item) => item.key === key);
+  if (index !== -1) {
+    formState.userSkills.splice(index, 1);
   }
 };
 
@@ -122,10 +141,14 @@ watch(
   (newValue) => {
     isModalVisible.value = newValue;
     if (newValue) {
-      // 深拷贝传入的员工数据，避免直接修改props
       const employeeData = JSON.parse(JSON.stringify(props.employeeData));
       Object.assign(formState, employeeData);
-      console.log('formState', formState);
+      if (!formState.userSkills) {
+        formState.userSkills = [];
+      }
+      if (!formState.restDays) {
+        formState.restDays = [];
+      }
     }
   },
 );
@@ -149,42 +172,48 @@ watch(
         </a-col>
         <a-col :span="12">
           <a-form-item label="员工职位 (正职/兼职)">
-            <a-select
-              v-model:value="formState.employeeType"
-              placeholder="请选择职位"
-            >
+            <a-select v-model:value="formState.employeeType" placeholder="请选择职位">
               <a-select-option value="正职">正职</a-select-option>
               <a-select-option value="兼职">兼职</a-select-option>
             </a-select>
           </a-form-item>
         </a-col>
-        <a-col :span="12">
-          <a-form-item label="技能 (可多选)">
-            <a-select
-              v-model:value="formState.skills"
-              mode="multiple"
-              placeholder="请选择员工掌握的技能"
-              :options="allSkills.map((s) => ({ value: s.id, label: s.name }))"
-            />
+
+        <a-col :span="24">
+          <a-form-item label="休息日 (可多选)">
+            <a-checkbox-group v-model:value="formState.restDays" :options="weekDayOptions" />
           </a-form-item>
         </a-col>
-        <a-col :span="12">
-          <a-form-item label="优先分数 (越高越优先)">
-            <a-input-number
-              v-model:value="formState.priorityScore"
-              :min="0"
-              :max="100"
-              style="width: 100%"
-            />
+
+        <a-col :span="24">
+          <a-form-item label="技能和分数">
+            <div v-for="skill in formState.userSkills" :key="skill.key" class="skill-row">
+              <a-select
+                v-model:value="skill.skillId"
+                placeholder="选择技能"
+                style="width: 200px"
+                :options="allSkills.map((s) => ({ value: s.id, label: s.name }))"
+              />
+              <a-input-number
+                v-model:value="skill.priority"
+                placeholder="分数"
+                :min="0"
+                :max="100"
+                style="margin: 0 8px"
+              />
+              <a-button type="text" danger @click="removeSkillRow(skill.key)">
+                <template #icon><DeleteOutlined /></template>
+              </a-button>
+            </div>
+            <a-button type="dashed" block @click="addSkillRow">
+              <PlusOutlined /> 添加技能
+            </a-button>
           </a-form-item>
         </a-col>
+
         <a-col :span="24">
           <a-form-item label="可上班时段">
-            <div
-              v-for="item in formState.availableTimes"
-              :key="item.key || item.id"
-              class="availability-row"
-            >
+            <div v-for="item in formState.availableTimes" :key="item.key || item.id" class="availability-row">
               <a-select
                 v-model:value="item.dayOfWeek"
                 placeholder="选择星期"
@@ -201,30 +230,27 @@ watch(
                 type="text"
                 danger
                 @click="removeAvailabilityRow(item.key)"
-                v-if="
-                  formState.availableTimes &&
-                  formState.availableTimes.length > 1
-                "
+                v-if="formState.availableTimes && formState.availableTimes.length > 1"
               >
                 <template #icon><DeleteOutlined /></template>
               </a-button>
             </div>
-            <a-button type="dashed" block @click="addAvailabilityRow">
+            <a-button type="dashed" style="width: calc(50% - 4px); margin-right: 8px;" block @click="addAvailabilityRow">
               <PlusOutlined /> 添加时段规则
+            </a-button>
+            <a-button danger block style="width: 50%;" @click="formState.availableTimes = []">
+              <DeleteOutlined /> 一键清空
             </a-button>
           </a-form-item>
         </a-col>
+
         <a-col :span="24">
           <a-form-item label="支援外店 (可多选)">
             <a-select
               v-model:value="formState.supportStoreIds"
               mode="multiple"
               placeholder="选择可支援的其他分店"
-              :options="
-                allStores
-                  .filter((s) => s.id !== formState.storeId)
-                  .map((s) => ({ value: s.id, label: s.name }))
-              "
+              :options="allStores.filter((s) => s.id !== formState.storeId).map((s) => ({ value: s.id, label: s.name }))"
             />
           </a-form-item>
         </a-col>
@@ -234,12 +260,12 @@ watch(
 </template>
 
 <style scoped>
+.skill-row,
 .availability-row {
   display: flex;
   align-items: center;
   margin-bottom: 8px;
 }
-
 .ant-form-item {
   margin-bottom: 16px;
 }

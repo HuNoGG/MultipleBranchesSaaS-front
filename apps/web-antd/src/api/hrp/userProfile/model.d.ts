@@ -62,6 +62,11 @@ export interface UserProfileForm extends BaseEntity {
    * 备注
    */
   remark?: string;
+
+  /**
+   * 休息日
+   */
+  restDays?: number[];
 }
 
 export interface UserProfileQuery extends PageQuery {

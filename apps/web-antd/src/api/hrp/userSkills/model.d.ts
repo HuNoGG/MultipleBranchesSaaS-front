@@ -22,6 +22,11 @@ export interface UserSkillsForm extends BaseEntity {
    * 技能 ID
    */
   skillId?: number | string;
+
+  /**
+   * 技能分数
+   */
+  priority?: number;
 }
 
 export interface UserSkillsQuery extends PageQuery {
