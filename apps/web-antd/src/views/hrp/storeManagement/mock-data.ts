@@ -1,11 +1,13 @@
 // MOCK 数据
 
 import type { User } from '#/api/system/user/model';
+import type {UserSkillsForm} from "#/api/hrp/userSkills/model";
 
 // ========== 数据模型定义 ==========
 
 export interface Skill {
   id: string;
+  skillId: string;
   name: string;
   description: string;
 }
@@ -25,6 +27,7 @@ export interface Employee {
   status: '在职' | '离职';
   hireDate: string; // 入职日期
   skills: Skill[];
+  userSkills: UserSkillsForm[];
 }
 
 export interface Store {

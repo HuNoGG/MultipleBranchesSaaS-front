@@ -42,6 +42,10 @@ const editingEmployee = ref<any>(null);
 
 const handleEditEmployee = (employee) => {
   editingEmployee.value = employee;
+  employee.skills.forEach((s)=>{
+    s.skillId = s.id
+  })
+  editingEmployee.value.userSkills = employee.skills
   employeeEditModalVisible.value = true;
 };
 
@@ -63,7 +67,6 @@ const enableRestDaySubstitution = ref(true); // #1 新增: 是否休息补替
 
 // #2 新增: 为日期页签生成数据
 const weekDaysForTabs = computed(() => {
-  debugger;
   if (!props.initialData.initialDate) return [];
   const startOfWeek = dayjs(props.initialData.initialDate).startOf('week');
   const days = [];
@@ -163,7 +166,6 @@ const fetchRequirementsAndShifts = async () => {
       startDate: lastWeekStartDate,
       endDate: currentStartDate.subtract(1, 'day').format('YYYY-MM-DD'),
     });
-    debugger;
     // 检查上周数据是否有效
     if (lastWeekRes && Object.keys(lastWeekRes.scheduleRows).length > 0) {
       dataSource = { type: 'last_week', data: lastWeekRes };
@@ -197,7 +199,6 @@ const fetchRequirementsAndShifts = async () => {
       });
       newDayReqs[timeSlot] = reqRow;
     });
-    debugger;
     // 4. 用数据源填充
     if (dataSource.type === 'template') {
       const dayOfWeek = dayjs(dateStr).day();
@@ -417,11 +418,11 @@ watchEffect(() => {
               <template v-if="column.dataIndex === 'userSkills'">
                 <div style="display: flex; flex-wrap: wrap; gap: 4px;">
                   <a-tag
-                    v-for="skill in record.userSkills"
-                    :key="skill.skillId"
+                    v-for="skill in record.skills"
+                    :key="skill.id"
                     color="blue"
                   >
-                    {{ allSkills.find(s => s.id === skill.skillId)?.name }} ({{ skill.priority }})
+                    {{ allSkills.find(s => s.id === skill.id)?.name }} ({{ skill.priority }})
                   </a-tag>
                 </div>
               </template>

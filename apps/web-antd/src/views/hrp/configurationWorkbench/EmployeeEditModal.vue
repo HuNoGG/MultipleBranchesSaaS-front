@@ -79,6 +79,7 @@ const handleOk = async () => {
         skill.userId = formState.id;
       });
     }
+    formState.skills  = formState.userSkills
     await saveExtendedInfo(formState);
     message.success(`员工 ${formState.userName} 的信息已更新`);
     emit('submit');
@@ -148,6 +149,12 @@ watch(
       }
       if (!formState.restDays) {
         formState.restDays = [];
+      }
+      if(formState.availableTimes){
+
+        formState.availableTimes.forEach((s)=>{
+          s.timeRange = [s.startTime,s.endTime]
+        })
       }
     }
   },

@@ -27,7 +27,12 @@ import {
   scheduleRequirementsAllTypeList,
 } from '#/api/hrp/scheduleRequirements';
 import { saveBasicSettings, shiftsAndRestTime } from '#/api/hrp/shifts';
-import {skillsAdd, skillsList, skillsRemove, skillsUpdate} from '#/api/hrp/skills';
+import {
+  skillsAdd,
+  skillsList,
+  skillsRemove,
+  skillsUpdate,
+} from '#/api/hrp/skills';
 import { storesAdd, storesList, storesUpdate } from '#/api/hrp/stores';
 import { listUserprofileWithSkills } from '#/api/hrp/userProfile';
 
@@ -375,7 +380,10 @@ const handleAddEmployee = async () => {
 const handleEditEmployee = (employee: Employee) => {
   // 深拷贝
   employeeForm = employee;
-
+  employeeForm.skills.forEach((s) => {
+    s.skillId = s.id;
+  });
+  console.log('employeeForm', employee);
   modalTitle.value = `编辑员工 - ${employee.userName}`;
   isEmployeeModalVisible.value = true;
 };
@@ -846,9 +854,7 @@ const handleSaveRequirements = async () => {
                   <a-list-item-meta>
                     <template #title>
                       <a-tag :color="item.colorCode">{{ item.name }}</a-tag>
-                      <span
-                        >{{ item.timeRange[0] }} - {{ item.timeRange[1] }}</span
-                      >
+                      <span>{{ item.timeRange[0] }} - {{ item.timeRange[1] }}</span>
                       <a-tag
                         v-if="item.isCrossDay"
                         color="purple"

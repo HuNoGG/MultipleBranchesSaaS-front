@@ -87,4 +87,5 @@ export interface Availability {
   dayOfWeek: DayOfWeekNumber; // 使用我们定义的精确类型
   startTime: string;
   endTime: string;
+  timeRange:[];
 }

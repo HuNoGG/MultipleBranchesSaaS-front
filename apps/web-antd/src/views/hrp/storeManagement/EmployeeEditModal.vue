@@ -17,12 +17,14 @@ interface Store {
   name: string;
 }
 interface Employee {
-  id: number;
+  userId: number;
   userName: string;
-  type: string;
-  userSkills: UserSkillsForm[]; // 修改: 使用带分数的技能模型
+  employeeType: string;
+  skills: UserSkillsForm[]; // 修改: 使用带分数的技能模型
   availableTimes: Availability[];
+  restDays: number[];
   supportStoreIds: number[];
+  priorityScore: number;
   storeId: number; // 当前员工所属店铺ID
 }
 
@@ -53,7 +55,7 @@ const emit = defineEmits(['update:visible', 'submit']);
 const isModalVisible = ref(false);
 const loading = ref(false);
 const formState = reactive<Partial<Employee>>({
-  userSkills: [],
+  skills: [],
 });
 const allSkills = ref<SkillsVO[]>([]);
 const weekDayOptions = [
@@ -80,12 +82,11 @@ const handleOk = async () => {
       });
     }
     // 确保userSkills中的每个对象都包含userId
-    if (formState.userSkills) {
-      formState.userSkills.forEach(skill => {
-        skill.userId = formState.id;
+    if (formState.skills) {
+      formState.skills.forEach(skill => {
+        skill.userId = formState.userId;
       });
     }
-
     await saveExtendedInfo(formState);
     console.log('Saving employee data:', formState);
     emit('submit');
@@ -124,10 +125,10 @@ const removeAvailabilityRow = (key: number) => {
 
 // 新增：添加技能行
 const addSkillRow = () => {
-  if (!formState.userSkills) {
-    formState.userSkills = [];
+  if (!formState.skills) {
+    formState.skills = [];
   }
-  formState.userSkills.push({
+  formState.skills.push({
     key: Date.now(),
     skillId: undefined,
     priority: 0,
@@ -136,9 +137,9 @@ const addSkillRow = () => {
 
 // 新增：删除技能行
 const removeSkillRow = (key: number) => {
-  const index = formState.userSkills.findIndex((item) => item.key === key);
+  const index = formState.skills.findIndex((item) => item.key === key);
   if (index !== -1) {
-    formState.userSkills.splice(index, 1);
+    formState.skills.splice(index, 1);
   }
 };
 
@@ -150,8 +151,14 @@ watch(
     if (newValue) {
       // 深拷贝传入的员工数据，避免直接修改props
       Object.assign(formState, JSON.parse(JSON.stringify(props.employeeData)));
-      if (!formState.userSkills) {
-        formState.userSkills = [];
+      if (!formState.skills) {
+        formState.skills = [];
+      }
+      if(formState.availableTimes){
+
+        formState.availableTimes.forEach((s)=>{
+          s.timeRange = [s.startTime,s.endTime]
+        })
       }
 
       // 加载当前店铺的技能列表
@@ -189,10 +196,20 @@ watch(
         </a-col>
         <a-col :span="12">
           <a-form-item label="员工职位 (正职/兼职)">
-            <a-select v-model:value="formState.type" placeholder="请选择职位">
+            <a-select v-model:value="formState.employeeType" placeholder="请选择职位">
               <a-select-option value="正职">正职</a-select-option>
               <a-select-option value="兼职">兼职</a-select-option>
             </a-select>
+          </a-form-item>
+        </a-col>
+        <a-col :span="12">
+          <a-form-item label="优先分数 (越高越优先)">
+            <a-input-number
+              v-model:value="formState.priorityScore"
+              :min="0"
+              :max="100"
+              style="width: 100%"
+            />
           </a-form-item>
         </a-col>
 
@@ -202,13 +219,13 @@ watch(
               v-model:value="formState.restDays"
               :options="weekDayOptions"
             />
-          </a--form-item>
+          </a-form-item>
         </a-col>
 
         <!-- 修改后的技能 & 分数模块 -->
         <a-col :span="24">
           <a-form-item label="技能和分数">
-            <div v-for="skill in formState.userSkills" :key="skill.key" class="skill-row">
+            <div v-for="skill in formState.skills" :key="skill.key" class="skill-row">
               <a-select
                 v-model:value="skill.skillId"
                 placeholder="选择技能"
