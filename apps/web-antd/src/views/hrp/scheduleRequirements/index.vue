@@ -135,6 +135,39 @@ onMounted(() => {
   fetchData();
 });
 
+const tableColumns = computed(() => {
+  const columns: any[] = [
+    {
+      title: '技能/岗位',
+      dataIndex: 'name',
+      key: 'skill',
+      fixed: 'left',
+      width: 150,
+    },
+  ];
+
+  weekDates.value.forEach(date => {
+    columns.push({
+      title: `${dayjs(date).format('ddd')} (${dayjs(date).format('MM-DD')})`,
+      key: date,
+      children: shifts.value.map(shift => ({
+        title: shift.name,
+        dataIndex: `${date}_${shift.id}`,
+        key: `${date}_${shift.id}`,
+        width: 120,
+        customHeaderCell: () => ({
+          style: {
+            backgroundColor: shift.colorCode || '#fafafa',
+            color: '#fff',
+          },
+        }),
+      })),
+    });
+  });
+
+  return columns;
+});
+
 </script>
 
 <template>
@@ -144,98 +177,34 @@ onMounted(() => {
     </template>
     <Spin :spinning="loading">
       <div v-if="!loading" class="p-4">
-        <table class="schedule-grid">
-          <thead>
-            <tr>
-              <th class="skill-header">技能/岗位</th>
-              <th v-for="date in weekDates" :key="date" class="date-header">
-                {{ dayjs(date).format('ddd') }} <br>
-                {{ dayjs(date).format('MM-DD') }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="skill in skills" :key="skill.id">
-              <td class="skill-cell">{{ skill.name }}</td>
-              <td v-for="date in weekDates" :key="date" class="data-cell">
-                <div class="shift-wrapper">
-                  <div v-for="shift in shifts" :key="shift.id" class="shift-cell">
-                    <span class="shift-name">{{ shift.name }}</span>
-                    <a-input-number
-                      v-if="gridData[skill.id] && gridData[skill.id][date]"
-                      v-model:value="gridData[skill.id][date][shift.id].count"
-                      :min="0"
-                      :max="99"
-                      placeholder="-"
-                      class="shift-input"
-                    />
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <a-table
+          :columns="tableColumns"
+          :data-source="skills"
+          :bordered="true"
+          :pagination="false"
+          row-key="id"
+          size="small"
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key !== 'skill'">
+              <a-input-number
+                v-if="gridData[record.id] && gridData[record.id][column.key.split('_')[0]]"
+                v-model:value="gridData[record.id][column.key.split('_')[0]][column.key.split('_')[1]].count"
+                :min="0"
+                :max="99"
+                placeholder="-"
+                style="width: 100%"
+              />
+            </template>
+          </template>
+        </a-table>
       </div>
     </Spin>
   </Page>
 </template>
 
 <style scoped>
-.schedule-grid {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-
-.schedule-grid th,
-.schedule-grid td {
-  border: 1px solid #e8e8e8;
-  padding: 8px;
+:deep(.ant-table-thead .ant-table-cell) {
   text-align: center;
-}
-
-.skill-header {
-  width: 150px;
-  background-color: #fafafa;
-}
-
-.date-header {
-  background-color: #fafafa;
-}
-
-.skill-cell {
-  background-color: #fafafa;
-  font-weight: bold;
-}
-
-.data-cell {
-  padding: 0;
-  vertical-align: top;
-}
-
-.shift-wrapper {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.shift-cell {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 8px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.shift-cell:last-child {
-  border-bottom: none;
-}
-
-.shift-name {
-  font-size: 12px;
-}
-
-.shift-input {
-  width: 60px;
 }
 </style>

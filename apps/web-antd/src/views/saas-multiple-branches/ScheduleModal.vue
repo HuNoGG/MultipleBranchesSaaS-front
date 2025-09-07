@@ -15,7 +15,6 @@ import { h } from 'vue';
 import { useDraggable } from '@vueuse/core';
 import { watchEffect } from 'vue';
 import EmployeeEditModal from '../hrp/configurationWorkbench/EmployeeEditModal.vue';
-import { useModal } from '@vben/common-ui';
 
 // ========== Props and Emits ==========
 const props = defineProps({
@@ -38,14 +37,12 @@ const activeTab = ref('employeeManagement');
 const isFeedbackVisible = ref(false);
 
 // ========== 员工管理页签状态 ==========
-const [employeeEditModal, openEmployeeEditModal] = useModal();
+const employeeEditModalVisible = ref(false);
+const editingEmployee = ref<any>(null);
 
 const handleEditEmployee = (employee) => {
-  openEmployeeEditModal.open({
-    employeeData: employee,
-    allSkills: allSkills.value,
-    // 如果需要，可以传递 allStores
-  });
+  editingEmployee.value = employee;
+  employeeEditModalVisible.value = true;
 };
 
 const employeeColumns: TableColumnType[] = [
@@ -515,7 +512,13 @@ watchEffect(() => {
     />
   </a-modal>
 
-  <EmployeeEditModal @register="employeeEditModal" @submit="fetchEmployees" />
+  <EmployeeEditModal
+    :visible="employeeEditModalVisible"
+    :employee-data="editingEmployee"
+    :all-skills="allSkills"
+    @update:visible="employeeEditModalVisible = $event"
+    @submit="fetchEmployees"
+  />
 </template>
 
 <style scoped lang="less">
